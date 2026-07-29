@@ -35,8 +35,8 @@ io.on('connection', (socket) => {
     });
 });
 
-// تشغيل السيرفر على المنفذ 3000
-const PORT = process.env.PORT || 3000;
+// تشغيل السيرفر على المنفذ 3001 (لتجنب التعارض مع مشروعك القديم على 3000)
+const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
     console.log(`🚀 خادم تلفزيون خورشمام يعمل بنجاح على المنفذ ${PORT}`);
 });
