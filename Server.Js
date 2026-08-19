@@ -8,7 +8,7 @@ const path = require('path');
 const app = express();
 app.use(cors());
 
-// السماح بقراءة ملفات HTML (index.html و admin.html) من نفس المجلد
+// السماح بقراءة ملفات HTML من نفس المجلد
 app.use(express.static(path.join(__dirname, '')));
 
 const server = http.createServer(app);
@@ -16,60 +16,70 @@ const io = new Server(server, {
     cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
-// إعداد خادم البث المباشر RTMP (لاستقبال البث من برنامج OBS Studio)
+// إعداد خادم البث المباشر RTMP
 const nmsConfig = {
-    rtmp: {
-        port: 1935,
-        chunk_size: 60000,
-        gop_cache: true,
-        ping: 30,
-        ping_timeout: 60
-    },
-    http: {
-        port: 8000,
-        allow_origin: '*'
-    }
+    rtmp: { port: 1935, chunk_size: 60000, gop_cache: true, ping: 30, ping_timeout: 60 },
+    http: { port: 8000, allow_origin: '*' }
 };
-
 const nms = new NodeMediaServer(nmsConfig);
 nms.run();
 
-// إدارة الاتصالات والأحداث اللحظية عبر Socket.io
+// --- 🧠 الذاكرة الذكية للسيرفر (لحفظ حالة القناة) ---
+let appState = {
+    streamUrl: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8', // الرابط الافتراضي
+    mode: 'live',
+    breakingText: 'مناقشة أهم التطورات الخدمية في المنطقة',
+    topTickerVisibility: 'show',
+    newsText: 'حالة الطقس: استقرار درجات الحرارة خلال الأيام القادمة',
+    logoVisibility: 'show',
+    logoUrl: 'https://i.postimg.cc/5txxv6Xv/1000865860-removebg-preview.png'
+};
+
 io.on('connection', (socket) => {
     console.log(`[+] متصل جديد: ${socket.id}`);
 
-    // 1. تمرير رسائل المحادثة (الشات)
+    // 1. فور دخول أي مشاهد جديد، نرسل له الحالة الحالية المحفوظة في الذاكرة
+    socket.emit('update stream url', { url: appState.streamUrl });
+    socket.emit('admin mode change', { mode: appState.mode });
+    socket.emit('update breaking', { text: appState.breakingText });
+    socket.emit('update top ticker control', { action: 'visibility', state: appState.topTickerVisibility });
+    socket.emit('update news ticker', { text: appState.newsText });
+    socket.emit('update logo control', { action: 'visibility', state: appState.logoVisibility });
+    socket.emit('update logo control', { action: 'image', url: appState.logoUrl });
+
+    // 2. استقبال التعديلات من لوحة الإدارة، حفظها في الذاكرة، ثم إرسالها للجميع
     socket.on('chat message', (msg) => {
         io.emit('chat message', msg);
     });
 
-    // 2. التحكم في وضع الشاشة (مباشر / مسجل / إعلان)
     socket.on('admin mode change', (data) => {
+        appState.mode = data.mode; // الحفظ في الذاكرة
         io.emit('admin mode change', data);
     });
 
-    // 3. تحديث نص الشريط العلوي (مقابلة خاصة)
     socket.on('update breaking', (data) => {
+        if (data.text) appState.breakingText = data.text;
         io.emit('update breaking', data);
     });
 
-    // 4. إخفاء أو إظهار الشريط العلوي بالكامل
     socket.on('update top ticker control', (data) => {
+        appState.topTickerVisibility = data.state;
         io.emit('update top ticker control', data);
     });
 
-    // 5. تحديث شريط الأخبار السفلي
     socket.on('update news ticker', (data) => {
+        if (data.text) appState.newsText = data.text;
         io.emit('update news ticker', data);
     });
 
-    // 6. التحكم في الشعار (الإظهار/الإخفاء أو تغيير صورة الشعار)
     socket.on('update logo control', (data) => {
+        if (data.action === 'visibility') appState.logoVisibility = data.state;
+        if (data.action === 'image' && data.url) appState.logoUrl = data.url;
         io.emit('update logo control', data);
     });
 
-    // 7. تحديث رابط العرض (يوتيوب أو البث المباشر HLS)
     socket.on('update stream url', (data) => {
+        if (data.url) appState.streamUrl = data.url;
         io.emit('update stream url', data);
     });
 
@@ -81,5 +91,4 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
     console.log(`🚀 خادم تلفزيون خورشمام يعمل بنجاح على المنفذ ${PORT}`);
-    console.log(`📡 سيرفر البث (RTMP) يعمل على المنفذ 1935 وتحويل HLS على المنفذ 8000`);
 });
