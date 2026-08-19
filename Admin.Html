@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تلفزيون خورشمام | لوحة التحكم الإدارية الشاملة</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Cairo', sans-serif; }
+        body { background-color: #0f0f13; color: #fff; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { text-align: center; color: #ff3333; margin-bottom: 25px; }
+        
+        /* مؤشر الاتصال */
+        #connStatus { text-align: center; font-weight: bold; margin-bottom: 20px; padding: 10px; border-radius: 8px; background: #333; transition: all 0.3s; }
+        
+        .card { background: #1a1a24; border: 1px solid #333; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+        .card h2 { font-size: 18px; margin-bottom: 15px; color: #60a5fa; border-bottom: 1px solid #333; padding-bottom: 8px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; }
+        input, textarea, select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #444; background: #0f0f13; color: #fff; outline: none; font-size: 15px; }
+        button { background: #ff3333; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: background 0.2s; margin-top: 10px; }
+        button:hover { background: #cc0000; }
+        .status-box { display: flex; gap: 10px; }
+        .status-btn { flex: 1; padding: 12px; font-weight: bold; border-radius: 8px; cursor: pointer; border: none; color: white; }
+        .btn-live { background: #10b981; } .btn-ad { background: #f59e0b; } .btn-rec { background: #6366f1; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛠️ لوحة التحكم الشاملة - تلفزيون خورشمام</h1>
+        
+        <!-- شريط حالة الاتصال -->
+        <div id="connStatus">🔴 جاري الاتصال بالسيرفر...</div>
+
+        <div class="card" style="border-color: #10b981;">
+            <h2>إعدادات برنامج البث الخارجي (OBS Studio)</h2>
+            <p style="color: #a1a1aa; line-height: 1.6; font-size: 14px;">
+                - <b>RTMP URL:</b> <code style="color: #60a5fa;">rtmp://IP_سيرفرك:1935/live</code><br>
+                - <b>Stream Key:</b> <code style="color: #60a5fa;">stream</code>
+            </p>
+        </div>
+
+        <!-- 1. التحكم في الشعار -->
+        <div class="card">
+            <h2>التحكم في الشعار والرمز</h2>
+            <div class="form-group">
+                <label>حالة الشعار على الشاشة:</label>
+                <select id="logoVisibility" onchange="toggleLogo()">
+                    <option value="show">إظهار الشعار</option>
+                    <option value="hide">إخفاء الشعار</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>رابط صورة الشعار الجديد (اختياري):</label>
+                <input type="text" id="logoUrlInput" placeholder="أدخل رابط صورة الشعار البديل...">
+            </div>
+            <button onclick="updateLogoImage()">تحديث صورة الشعار</button>
+        </div>
+
+        <!-- 2. التحكم في الشريط العلوي (مقابلة خاصة) -->
+        <div class="card">
+            <h2>إدارة شريط "مقابلة خاصة" العلوي</h2>
+            <div class="form-group">
+                <label>حالة الشريط العلوي:</label>
+                <select id="tickerTopVisibility" onchange="toggleTopTicker()">
+                    <option value="show">إظهار الشريط</option>
+                    <option value="hide">إخفاء الشريط</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>نص الشريط العلوي (مقابلة خاصة):</label>
+                <input type="text" id="breakingInput" placeholder="اكتب نص الشريط العلوي...">
+            </div>
+            <button onclick="updateTopTicker()">تحديث وتطبيق الشريط</button>
+        </div>
+
+        <!-- 3. تحديث شريط الأخبار السفلي -->
+        <div class="card">
+            <h2>إدارة شريط الأخبار المتحرك السفلي</h2>
+            <div class="form-group">
+                <label>نص شريط الأخبار السفلي:</label>
+                <input type="text" id="newsInput" placeholder="اكتب نص أخبار الشريط السفلي...">
+            </div>
+            <button onclick="updateNewsTicker()">تحديث الأخبار الآن</button>
+        </div>
+
+        <!-- 4. وضع الشاشة -->
+        <div class="card">
+            <h2>وضع البث والعرض</h2>
+            <div class="status-box">
+                <button class="status-btn btn-live" onclick="changeMode('live')">وضع المباشر (Live)</button>
+                <button class="status-btn btn-ad" onclick="changeMode('ad')">وضع الإعلانات (Ad)</button>
+                <button class="status-btn btn-rec" onclick="changeMode('recorded')">وضع المسجل (Recorded)</button>
+            </div>
+        </div>
+
+        <!-- 5. رابط البث المباشر -->
+        <div class="card">
+            <h2>تغيير رابط البث المباشر (HLS URL / YouTube)</h2>
+            <div class="form-group">
+                <input type="text" id="streamUrlInput" placeholder="أدخل رابط اليوتيوب أو .m3u8 الجديد...">
+            </div>
+            <button onclick="updateStreamUrl()">تغيير وعرض البث للمشاهدين</button>
+        </div>
+
+        <!-- 6. رسائل الإدارة في الشات -->
+        <div class="card">
+            <h2>إرسال إعلان رسمي في المحادثة</h2>
+            <div class="form-group">
+                <textarea id="adminMsgInput" rows="3" placeholder="اكتب رسالة الإدارة لتظهر للمشاهدين فوراً..."></textarea>
+            </div>
+            <button onclick="sendAdminMessage()">إرسال الإعلان للشات</button>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const statusEl = document.getElementById('connStatus');
+
+        // مؤشر الاتصال
+        socket.on('connect', () => {
+            statusEl.innerText = "🟢 متصل بالسيرفر وجاهز للتحكم";
+            statusEl.style.background = "#064e3b";
+            statusEl.style.color = "#34d399";
+        });
+
+        socket.on('disconnect', () => {
+            statusEl.innerText = "🔴 تم فقدان الاتصال بالسيرفر!";
+            statusEl.style.background = "#7f1d1d";
+            statusEl.style.color = "#fca5a5";
+        });
+
+        function toggleLogo() {
+            const state = document.getElementById('logoVisibility').value;
+            socket.emit('update logo control', { action: 'visibility', state: state });
+        }
+
+        function updateLogoImage() {
+            const url = document.getElementById('logoUrlInput').value;
+            if(url) {
+                socket.emit('update logo control', { action: 'image', url: url });
+                alert('تم تحديث الشعار بنجاح');
+            }
+        }
+
+        function toggleTopTicker() {
+            const state = document.getElementById('tickerTopVisibility').value;
+            socket.emit('update top ticker control', { action: 'visibility', state: state });
+        }
+
+        function updateTopTicker() {
+            const breaking = document.getElementById('breakingInput').value;
+            if(breaking) {
+                socket.emit('update breaking', { text: breaking });
+                alert('تم تحديث النص العلوي بنجاح');
+            }
+        }
+
+        function updateNewsTicker() {
+            const news = document.getElementById('newsInput').value;
+            if(news) {
+                socket.emit('update news ticker', { text: news });
+                alert('تم تحديث الأخبار بنجاح');
+            }
+        }
+
+        function changeMode(mode) { 
+            socket.emit('admin mode change', { mode }); 
+            alert('تم تغيير وضع الشاشة إلى: ' + mode);
+        }
+
+        function updateStreamUrl() {
+            const url = document.getElementById('streamUrlInput').value;
+            if(url) {
+                socket.emit('update stream url', { url });
+                alert('تم تغيير رابط البث بنجاح');
+            }
+        }
+
+        function sendAdminMessage() {
+            const text = document.getElementById('adminMsgInput').value;
+            if(text) {
+                socket.emit('chat message', { user: 'إدارة القناة 🛡️', text, color: '#ff3333' });
+                alert('تم إرسال إعلان الإدارة للشات بنجاح');
+                document.getElementById('adminMsgInput').value = '';
+            }
+        }
+    </script>
+</body>
+</html>
