@@ -4,12 +4,23 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const NodeMediaServer = require('node-media-server');
 const path = require('path');
+const mongoose = require('mongoose'); // مكتبة قاعدة البيانات
 
 const app = express();
 app.use(cors());
+app.use(express.json()); // لدعم نظام تسجيل الدخول الآمن
 
 // السماح بقراءة ملفات HTML من نفس المجلد
 app.use(express.static(path.join(__dirname, '')));
+
+// الاتصال بقاعدة البيانات (MongoDB) لحفظ المحادثات
+mongoose.connect('mongodb://127.0.0.1:27017/khorshamam-tv')
+    .then(() => console.log('✅ تم الاتصال بقاعدة البيانات بنجاح'))
+    .catch(err => console.log('⚠️ قاعدة البيانات غير متصلة مؤقتاً'));
+
+// مخطط حفظ الدردشة
+const chatSchema = new mongoose.Schema({ msg: String, time: { type: Date, default: Date.now } });
+const Chat = mongoose.model('Chat', chatSchema);
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -24,47 +35,81 @@ const nmsConfig = {
 const nms = new NodeMediaServer(nmsConfig);
 nms.run();
 
-// --- 🧠 الذاكرة الذكية للسيرفر (لحفظ حالة القناة) ---
+// مسار تسجيل الدخول (API) لتأمين لوحة التحكم مستقبلاً
+app.post('/api/login', (req, res) => {
+    const { username, password } = req.body;
+    if(username === 'admin' && password === '123456') {
+        res.json({ success: true, token: 'khorshamam-secure-token' });
+    } else {
+        res.status(401).json({ success: false, message: 'بيانات غير صحيحة' });
+    }
+});
+
+// --- 🧠 الذاكرة الذكية للسيرفر ---
 let appState = {
-    streamUrl: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8', // الرابط الافتراضي
+    streamUrl: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
     mode: 'live',
-    breakingText: 'مناقشة أهم التطورات الخدمية في المنطقة',
     topTickerVisibility: 'show',
+    topTickerText: 'عاجل | تحديثات جديدة في منظومة خورشمام', // حل مشكلة نص الشريط العلوي
+    breakingText: 'مناقشة أهم التطورات الخدمية في المنطقة',
     newsText: 'حالة الطقس: استقرار درجات الحرارة خلال الأيام القادمة',
     logoVisibility: 'show',
     logoUrl: 'https://i.postimg.cc/5txxv6Xv/1000865860-removebg-preview.png'
 };
 
-io.on('connection', (socket) => {
-    console.log(`[+] متصل جديد: ${socket.id}`);
+let liveViewers = 0; // عداد المشاهدين
 
-    // 1. فور دخول أي مشاهد جديد، نرسل له الحالة الحالية المحفوظة في الذاكرة
+io.on('connection', async (socket) => {
+    console.log(`[+] متصل جديد: ${socket.id}`);
+    
+    // زيادة عدد المشاهدين وإرسال الرقم للجميع
+    liveViewers++;
+    io.emit('viewers count', liveViewers);
+
+    // 1. فور دخول أي مشاهد جديد، نرسل له الحالة الحالية
     socket.emit('update stream url', { url: appState.streamUrl });
     socket.emit('admin mode change', { mode: appState.mode });
-    socket.emit('update breaking', { text: appState.breakingText });
     socket.emit('update top ticker control', { action: 'visibility', state: appState.topTickerVisibility });
+    socket.emit('update top ticker text', { text: appState.topTickerText }); // إرسال النص العلوي
+    socket.emit('update breaking', { text: appState.breakingText });
     socket.emit('update news ticker', { text: appState.newsText });
     socket.emit('update logo control', { action: 'visibility', state: appState.logoVisibility });
     socket.emit('update logo control', { action: 'image', url: appState.logoUrl });
 
-    // 2. استقبال التعديلات من لوحة الإدارة، حفظها في الذاكرة، ثم إرسالها للجميع
-    socket.on('chat message', (msg) => {
+    // إرسال أرشيف المحادثات السابقة للمشاهد الجديد (آخر 50 رسالة)
+    try {
+        const history = await Chat.find().sort({ time: -1 }).limit(50);
+        socket.emit('chat history', history.reverse());
+    } catch(e) {
+        console.log("خطأ في جلب المحادثات السابقة");
+    }
+
+    // 2. استقبال التعديلات من لوحة الإدارة
+    socket.on('chat message', async (msg) => {
+        // حفظ الرسالة في قاعدة البيانات قبل إرسالها للجميع
+        try { await new Chat({ msg }).save(); } catch(e) {}
         io.emit('chat message', msg);
     });
 
     socket.on('admin mode change', (data) => {
-        appState.mode = data.mode; // الحفظ في الذاكرة
+        appState.mode = data.mode;
         io.emit('admin mode change', data);
     });
 
-    socket.on('update breaking', (data) => {
-        if (data.text) appState.breakingText = data.text;
-        io.emit('update breaking', data);
+    // التحكم في نص الشريط العلوي
+    socket.on('update top ticker text', (data) => {
+        if (data.text) appState.topTickerText = data.text;
+        io.emit('update top ticker text', data);
     });
 
     socket.on('update top ticker control', (data) => {
         appState.topTickerVisibility = data.state;
         io.emit('update top ticker control', data);
+    });
+
+    socket.on('update breaking', (data) => {
+        if (data.text) appState.breakingText = data.text;
+        io.emit('update breaking', data);
     });
 
     socket.on('update news ticker', (data) => {
@@ -85,6 +130,9 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         console.log(`[-] غادر المستخدم: ${socket.id}`);
+        // تقليل عدد المشاهدين عند الخروج وإرسال التحديث للجميع
+        liveViewers--;
+        io.emit('viewers count', liveViewers);
     });
 });
 
