@@ -175,7 +175,7 @@
                 
                 // تم إضافة mute=1 للتشغيل التلقائي
                 container.innerHTML = `
-                    <iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&enablejsapi=1" 
+                    <iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&enablejsapi=1" 
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
                             allowfullscreen></iframe>
                     ${graphicsHTML}
@@ -183,7 +183,8 @@
             } else {
                 if (!document.getElementById('main-player')) {
                     container.innerHTML = `
-                        <video id="main-player" controls preload="auto" poster="placeholder.jpg" muted></video>
+                        <video id="main-player" controls preload="auto" poster="placeholder.jpg"></video>
+
                         ${graphicsHTML}
                     `;
                 }
