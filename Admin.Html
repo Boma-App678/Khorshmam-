@@ -9,15 +9,13 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Cairo', sans-serif; }
         body { background-color: #0f0f13; color: #fff; padding: 20px; }
-        .container { max-width: 900px; margin: 0 auto; display: none; /* مخفي حتى تسجيل الدخول */ }
+        .container { max-width: 900px; margin: 0 auto; display: none; }
         h1 { text-align: center; color: #ff3333; margin-bottom: 25px; }
         
-        /* شاشة تسجيل الدخول */
         #loginOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0f0f13; display: flex; justify-content: center; align-items: center; z-index: 9999; }
         .login-card { background: #1a1a24; padding: 40px; border-radius: 12px; text-align: center; border: 1px solid #333; width: 90%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
         .login-card h2 { color: #ff3333; margin-bottom: 20px; }
         
-        /* العدادات ومؤشر الاتصال */
         .status-container { display: flex; gap: 15px; margin-bottom: 20px; }
         #connStatus { flex: 1; text-align: center; font-weight: bold; padding: 12px; border-radius: 8px; background: #333; transition: all 0.3s; }
         #viewersCount { flex: 1; text-align: center; font-weight: bold; padding: 12px; border-radius: 8px; background: #2563eb; color: white; }
@@ -47,14 +45,12 @@
         </div>
     </div>
 
-    <!-- 🛠️ لوحة التحكم (مخفية حتى يتم الدخول) -->
+    <!-- 🛠️ لوحة التحكم -->
     <div class="container" id="adminContainer">
         <h1>🛠️ لوحة التحكم الشاملة - تلفزيون خورشمام</h1>
         
         <div class="status-container">
-            <!-- شريط حالة الاتصال -->
             <div id="connStatus">🔴 جاري الاتصال...</div>
-            <!-- عداد المشاهدين -->
             <div id="viewersCount">👁️ المشاهدين الآن: <span id="vCount">0</span></div>
         </div>
 
@@ -82,9 +78,9 @@
             <button onclick="updateLogoImage()">تحديث صورة الشعار</button>
         </div>
 
-        <!-- 2. التحكم في الشريط العلوي -->
+        <!-- 2. الشريط العلوي الإضافي -->
         <div class="card">
-            <h2>إدارة شريط "مقابلة خاصة" العلوي</h2>
+            <h2>إدارة شريط (مقابلة خاصة) العلوي</h2>
             <div class="form-group">
                 <label>حالة الشريط العلوي:</label>
                 <select id="tickerTopVisibility" onchange="toggleTopTicker()">
@@ -93,21 +89,30 @@
                 </select>
             </div>
             <div class="form-group">
-                <input type="text" id="topTickerInput" placeholder="اكتب نص الشريط العلوي هنا...">
+                <input type="text" id="topTickerInput" placeholder="اكتب النص هنا (مثال: عاجل | تحديثات...)">
             </div>
-            <button onclick="updateTopTicker()">تحديث وتطبيق الشريط</button>
+            <button onclick="updateTopTicker()">تحديث النص العلوي</button>
         </div>
 
-        <!-- 3. تحديث شريط الأخبار السفلي -->
+        <!-- 3. شريط عاجل (الأحمر) - تمت إضافته هنا -->
+        <div class="card" style="border-color: #ef4444;">
+            <h2>إدارة شريط (عاجل) الأحمر الرئيسي</h2>
+            <div class="form-group">
+                <input type="text" id="breakingInput" placeholder="اكتب نص الخبر العاجل هنا...">
+            </div>
+            <button onclick="updateBreaking()" style="background: #ef4444;">تحديث الخبر العاجل الآن</button>
+        </div>
+
+        <!-- 4. شريط الأخبار السفلي (الأبيض) -->
         <div class="card">
-            <h2>إدارة شريط الأخبار المتحرك السفلي</h2>
+            <h2>إدارة شريط (الأخبار) الأبيض السفلي</h2>
             <div class="form-group">
                 <input type="text" id="newsInput" placeholder="اكتب نص أخبار الشريط السفلي...">
             </div>
             <button onclick="updateNewsTicker()">تحديث الأخبار الآن</button>
         </div>
 
-        <!-- 4. وضع الشاشة -->
+        <!-- 5. وضع الشاشة -->
         <div class="card">
             <h2>وضع البث والعرض</h2>
             <div class="status-box">
@@ -117,7 +122,7 @@
             </div>
         </div>
 
-        <!-- 5. رابط البث المباشر -->
+        <!-- 6. رابط البث المباشر -->
         <div class="card">
             <h2>تغيير رابط البث المباشر (HLS URL / YouTube)</h2>
             <div class="form-group">
@@ -126,7 +131,7 @@
             <button onclick="updateStreamUrl()">تغيير وعرض البث للمشاهدين</button>
         </div>
 
-        <!-- 6. رسائل الإدارة في الشات -->
+        <!-- 7. رسائل الإدارة في الشات -->
         <div class="card">
             <h2>إرسال إعلان رسمي في المحادثة</h2>
             <div class="form-group">
@@ -137,23 +142,18 @@
     </div>
 
     <script>
-        // --- نظام تسجيل الدخول الآمن ---
+        // نظام تسجيل الدخول الآمن
         async function login() {
             const u = document.getElementById('adminUser').value;
             const p = document.getElementById('adminPass').value;
-            
             try {
-                // نرسل الطلب للسيرفر الذي برمجناه
                 const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username: u, password: p })
                 });
-                
                 const data = await response.json();
-                
                 if(data.success) {
-                    // إذا نجح الدخول: نخفي شاشة الدخول ونظهر اللوحة
                     document.getElementById('loginOverlay').style.display = 'none';
                     document.getElementById('adminContainer').style.display = 'block';
                 } else {
@@ -164,7 +164,6 @@
             }
         }
 
-        // --- الاتصال اللحظي بالسيرفر ---
         const socket = io();
         const statusEl = document.getElementById('connStatus');
 
@@ -180,12 +179,11 @@
             statusEl.style.color = "#fca5a5";
         });
 
-        // تحديث عداد المشاهدين
         socket.on('viewers count', (count) => {
             document.getElementById('vCount').innerText = count;
         });
 
-        // --- وظائف التحكم ---
+        // وظائف التحكم
         function toggleLogo() {
             const state = document.getElementById('logoVisibility').value;
             socket.emit('update logo control', { action: 'visibility', state: state });
@@ -204,12 +202,20 @@
             socket.emit('update top ticker control', { action: 'visibility', state: state });
         }
 
-        // تم إصلاح حدث الشريط العلوي ليتطابق مع السيرفر
         function updateTopTicker() {
             const text = document.getElementById('topTickerInput').value;
             if(text) {
                 socket.emit('update top ticker text', { text: text });
                 alert('تم تحديث النص العلوي بنجاح');
+            }
+        }
+
+        // --- هذه هي الوظيفة الجديدة التي نسيناها (تحديث العاجل الأحمر) ---
+        function updateBreaking() {
+            const text = document.getElementById('breakingInput').value;
+            if(text) {
+                socket.emit('update breaking', { text: text });
+                alert('تم تحديث الخبر العاجل بنجاح');
             }
         }
 
