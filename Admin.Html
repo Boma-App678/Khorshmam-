@@ -3,24 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تلفزيون خورشمام | لوحة التحكم الإدارية الشاملة</title>
+    <title>تلفزيون خورشمام | لوحة التحكم الإدارية</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Cairo', sans-serif; }
         body { background-color: #0f0f13; color: #fff; padding: 20px; }
-        .container { max-width: 900px; margin: 0 auto; }
+        .container { max-width: 900px; margin: 0 auto; display: none; /* مخفي حتى تسجيل الدخول */ }
         h1 { text-align: center; color: #ff3333; margin-bottom: 25px; }
         
-        /* مؤشر الاتصال */
-        #connStatus { text-align: center; font-weight: bold; margin-bottom: 20px; padding: 10px; border-radius: 8px; background: #333; transition: all 0.3s; }
+        /* شاشة تسجيل الدخول */
+        #loginOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0f0f13; display: flex; justify-content: center; align-items: center; z-index: 9999; }
+        .login-card { background: #1a1a24; padding: 40px; border-radius: 12px; text-align: center; border: 1px solid #333; width: 90%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
+        .login-card h2 { color: #ff3333; margin-bottom: 20px; }
         
+        /* العدادات ومؤشر الاتصال */
+        .status-container { display: flex; gap: 15px; margin-bottom: 20px; }
+        #connStatus { flex: 1; text-align: center; font-weight: bold; padding: 12px; border-radius: 8px; background: #333; transition: all 0.3s; }
+        #viewersCount { flex: 1; text-align: center; font-weight: bold; padding: 12px; border-radius: 8px; background: #2563eb; color: white; }
+
         .card { background: #1a1a24; border: 1px solid #333; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
         .card h2 { font-size: 18px; margin-bottom: 15px; color: #60a5fa; border-bottom: 1px solid #333; padding-bottom: 8px; }
         .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; font-weight: 600; }
-        input, textarea, select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #444; background: #0f0f13; color: #fff; outline: none; font-size: 15px; }
-        button { background: #ff3333; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: background 0.2s; margin-top: 10px; }
+        input, textarea, select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #444; background: #0f0f13; color: #fff; outline: none; font-size: 15px; margin-bottom: 10px; }
+        button { background: #ff3333; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: background 0.2s; width: 100%; }
         button:hover { background: #cc0000; }
         .status-box { display: flex; gap: 10px; }
         .status-btn { flex: 1; padding: 12px; font-weight: bold; border-radius: 8px; cursor: pointer; border: none; color: white; }
@@ -28,11 +35,28 @@
     </style>
 </head>
 <body>
-    <div class="container">
+
+    <!-- 🔒 شاشة تسجيل الدخول -->
+    <div id="loginOverlay">
+        <div class="login-card">
+            <h2>🛡️ تسجيل الدخول للإدارة</h2>
+            <input type="text" id="adminUser" placeholder="اسم المستخدم">
+            <input type="password" id="adminPass" placeholder="كلمة المرور">
+            <button onclick="login()">دخول الآن</button>
+            <p id="loginError" style="color: #ef4444; margin-top: 15px; display: none; font-weight: bold;">بيانات الدخول غير صحيحة!</p>
+        </div>
+    </div>
+
+    <!-- 🛠️ لوحة التحكم (مخفية حتى يتم الدخول) -->
+    <div class="container" id="adminContainer">
         <h1>🛠️ لوحة التحكم الشاملة - تلفزيون خورشمام</h1>
         
-        <!-- شريط حالة الاتصال -->
-        <div id="connStatus">🔴 جاري الاتصال بالسيرفر...</div>
+        <div class="status-container">
+            <!-- شريط حالة الاتصال -->
+            <div id="connStatus">🔴 جاري الاتصال...</div>
+            <!-- عداد المشاهدين -->
+            <div id="viewersCount">👁️ المشاهدين الآن: <span id="vCount">0</span></div>
+        </div>
 
         <div class="card" style="border-color: #10b981;">
             <h2>إعدادات برنامج البث الخارجي (OBS Studio)</h2>
@@ -53,13 +77,12 @@
                 </select>
             </div>
             <div class="form-group">
-                <label>رابط صورة الشعار الجديد (اختياري):</label>
                 <input type="text" id="logoUrlInput" placeholder="أدخل رابط صورة الشعار البديل...">
             </div>
             <button onclick="updateLogoImage()">تحديث صورة الشعار</button>
         </div>
 
-        <!-- 2. التحكم في الشريط العلوي (مقابلة خاصة) -->
+        <!-- 2. التحكم في الشريط العلوي -->
         <div class="card">
             <h2>إدارة شريط "مقابلة خاصة" العلوي</h2>
             <div class="form-group">
@@ -70,8 +93,7 @@
                 </select>
             </div>
             <div class="form-group">
-                <label>نص الشريط العلوي (مقابلة خاصة):</label>
-                <input type="text" id="breakingInput" placeholder="اكتب نص الشريط العلوي...">
+                <input type="text" id="topTickerInput" placeholder="اكتب نص الشريط العلوي هنا...">
             </div>
             <button onclick="updateTopTicker()">تحديث وتطبيق الشريط</button>
         </div>
@@ -80,7 +102,6 @@
         <div class="card">
             <h2>إدارة شريط الأخبار المتحرك السفلي</h2>
             <div class="form-group">
-                <label>نص شريط الأخبار السفلي:</label>
                 <input type="text" id="newsInput" placeholder="اكتب نص أخبار الشريط السفلي...">
             </div>
             <button onclick="updateNewsTicker()">تحديث الأخبار الآن</button>
@@ -90,9 +111,9 @@
         <div class="card">
             <h2>وضع البث والعرض</h2>
             <div class="status-box">
-                <button class="status-btn btn-live" onclick="changeMode('live')">وضع المباشر (Live)</button>
-                <button class="status-btn btn-ad" onclick="changeMode('ad')">وضع الإعلانات (Ad)</button>
-                <button class="status-btn btn-rec" onclick="changeMode('recorded')">وضع المسجل (Recorded)</button>
+                <button class="status-btn btn-live" onclick="changeMode('live')">مباشر (Live)</button>
+                <button class="status-btn btn-ad" onclick="changeMode('ad')">إعلانات (Ad)</button>
+                <button class="status-btn btn-rec" onclick="changeMode('recorded')">مسجل (Recorded)</button>
             </div>
         </div>
 
@@ -116,22 +137,55 @@
     </div>
 
     <script>
+        // --- نظام تسجيل الدخول الآمن ---
+        async function login() {
+            const u = document.getElementById('adminUser').value;
+            const p = document.getElementById('adminPass').value;
+            
+            try {
+                // نرسل الطلب للسيرفر الذي برمجناه
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: u, password: p })
+                });
+                
+                const data = await response.json();
+                
+                if(data.success) {
+                    // إذا نجح الدخول: نخفي شاشة الدخول ونظهر اللوحة
+                    document.getElementById('loginOverlay').style.display = 'none';
+                    document.getElementById('adminContainer').style.display = 'block';
+                } else {
+                    document.getElementById('loginError').style.display = 'block';
+                }
+            } catch(e) {
+                alert('خطأ في الاتصال بالسيرفر! تأكد أن السيرفر يعمل.');
+            }
+        }
+
+        // --- الاتصال اللحظي بالسيرفر ---
         const socket = io();
         const statusEl = document.getElementById('connStatus');
 
-        // مؤشر الاتصال
         socket.on('connect', () => {
-            statusEl.innerText = "🟢 متصل بالسيرفر وجاهز للتحكم";
+            statusEl.innerText = "🟢 متصل وجاهز للتحكم";
             statusEl.style.background = "#064e3b";
             statusEl.style.color = "#34d399";
         });
 
         socket.on('disconnect', () => {
-            statusEl.innerText = "🔴 تم فقدان الاتصال بالسيرفر!";
+            statusEl.innerText = "🔴 تم فقدان الاتصال!";
             statusEl.style.background = "#7f1d1d";
             statusEl.style.color = "#fca5a5";
         });
 
+        // تحديث عداد المشاهدين
+        socket.on('viewers count', (count) => {
+            document.getElementById('vCount').innerText = count;
+        });
+
+        // --- وظائف التحكم ---
         function toggleLogo() {
             const state = document.getElementById('logoVisibility').value;
             socket.emit('update logo control', { action: 'visibility', state: state });
@@ -150,10 +204,11 @@
             socket.emit('update top ticker control', { action: 'visibility', state: state });
         }
 
+        // تم إصلاح حدث الشريط العلوي ليتطابق مع السيرفر
         function updateTopTicker() {
-            const breaking = document.getElementById('breakingInput').value;
-            if(breaking) {
-                socket.emit('update breaking', { text: breaking });
+            const text = document.getElementById('topTickerInput').value;
+            if(text) {
+                socket.emit('update top ticker text', { text: text });
                 alert('تم تحديث النص العلوي بنجاح');
             }
         }
