@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تلفزيون خورشمام | لوحة التحكم والمجدول الذكي</title>
+    <title>تلفزيون خورشمام | لوحة التحكم</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
@@ -11,15 +11,12 @@
         body { background-color: #0f0f13; color: #fff; padding: 20px; }
         .container { max-width: 900px; margin: 0 auto; display: none; }
         h1 { text-align: center; color: #ff3333; margin-bottom: 25px; }
-        
         #loginOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0f0f13; display: flex; justify-content: center; align-items: center; z-index: 9999; }
         .login-card { background: #1a1a24; padding: 40px; border-radius: 12px; text-align: center; border: 1px solid #333; width: 90%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
         .login-card h2 { color: #ff3333; margin-bottom: 20px; }
-        
         .status-container { display: flex; gap: 15px; margin-bottom: 20px; }
         #connStatus { flex: 1; text-align: center; font-weight: bold; padding: 12px; border-radius: 8px; background: #333; transition: all 0.3s; }
         #viewersCount { flex: 1; text-align: center; font-weight: bold; padding: 12px; border-radius: 8px; background: #2563eb; color: white; }
-
         .card { background: #1a1a24; border: 1px solid #333; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
         .card h2 { font-size: 18px; margin-bottom: 15px; color: #60a5fa; border-bottom: 1px solid #333; padding-bottom: 8px; }
         .form-group { margin-bottom: 15px; }
@@ -30,24 +27,14 @@
         .status-box { display: flex; gap: 10px; }
         .status-btn { flex: 1; padding: 12px; font-weight: bold; border-radius: 8px; cursor: pointer; border: none; color: white; }
         .btn-live { background: #10b981; } .btn-ad { background: #f59e0b; } .btn-rec { background: #6366f1; }
-        
-        /* تصميم المجدول الذكي */
         .scheduler-card { border: 2px solid #6366f1; }
         .emergency-card { border: 2px solid #ef4444; background: rgba(239, 68, 68, 0.05); }
-        .btn-schedule { background: #6366f1; } .btn-schedule:hover { background: #4f46e5; }
-        .btn-emergency { background: #ef4444; animation: pulse 2s infinite; }
-        .btn-end-emergency { background: #10b981; }
-        
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
-        }
+        .playlist-view { list-style: none; padding: 10px; background: #0f0f13; border-radius: 8px; margin-bottom: 15px; font-size: 13px; max-height: 150px; overflow-y: auto; border: 1px solid #333; }
+        .playlist-view li { padding: 8px; border-bottom: 1px solid #333; color: #a1a1aa; }
     </style>
 </head>
 <body>
 
-    <!-- 🔒 شاشة تسجيل الدخول -->
     <div id="loginOverlay">
         <div class="login-card">
             <h2>🛡️ إدارة خورشمام</h2>
@@ -58,247 +45,162 @@
         </div>
     </div>
 
-    <!-- 🛠️ لوحة التحكم -->
     <div class="container" id="adminContainer">
-        <h1>🛠️ تلفزيون خورشمام - المجدول الذكي</h1>
+        <h1>🛠️ تلفزيون خورشمام - لوحة التحكم</h1>
         
         <div class="status-container">
             <div id="connStatus">🔴 جاري الاتصال...</div>
             <div id="viewersCount">👁️ المشاهدين الآن: <span id="vCount">0</span></div>
         </div>
 
-        <!-- ⏰ 1. المجدول الذكي (البرنامج الأساسي) -->
+        <!-- 📺 قائمة التشغيل الآلية -->
         <div class="card scheduler-card">
-            <h2 style="color: #6366f1;">📅 المجدول: بدء برنامج / إعلان جديد</h2>
-            <p style="color: #a1a1aa; font-size: 13px; margin-bottom: 10px;">عند تشغيل برنامج من هنا، سيبدأ العداد في حساب الوقت للعودة إليه لاحقاً.</p>
-            <div class="form-group">
-                <input type="text" id="scheduleInput" placeholder="أدخل رابط يوتيوب للبرنامج/الإعلان...">
+            <h2 style="color: #6366f1;">📺 قائمة التشغيل الآلية (Auto-Playlist)</h2>
+            <p style="color: #a1a1aa; font-size: 13px; margin-bottom: 10px;">أضف الروابط ومدتها (بالثواني). السيرفر سينتقل بينها تلقائياً.</p>
+            
+            <div class="form-group" style="display: flex; gap: 10px;">
+                <input type="text" id="plUrl" placeholder="رابط يوتيوب أو فيديو..." style="flex: 3; margin:0;">
+                <input type="number" id="plDuration" placeholder="المدة (ثواني)" style="flex: 1; margin:0;">
             </div>
-            <button class="btn-schedule" onclick="setScheduledProgram()">تشغيل البرنامج الآن</button>
+            
+            <div class="status-box" style="margin-bottom: 15px;">
+                <button onclick="addToPlaylist()" style="background: #4f46e5;">➕ إضافة للقائمة</button>
+                <button onclick="clearPlaylist()" style="background: #444;">🗑️ مسح القائمة</button>
+            </div>
+            
+            <ul id="playlistView" class="playlist-view">
+                <li>لا يوجد فيديوهات في القائمة حالياً...</li>
+            </ul>
+
+            <button onclick="startPlaylist()" style="background: #10b981; font-size: 16px;">▶️ بدء تشغيل القائمة بالترتيب الآن</button>
         </div>
 
-        <!-- 🚨 2. وضع الطوارئ (البث المباشر) -->
+        <!-- 🚨 وضع الطوارئ -->
         <div class="card emergency-card">
             <h2 style="color: #ef4444;">🚨 غرفة الطوارئ: البث المباشر / العاجل</h2>
-            <p style="color: #a1a1aa; font-size: 13px; margin-bottom: 10px;">هذا الزر سيقطع البرنامج الحالي فوراً وينقل المشاهدين للحدث الطارئ.</p>
+            <p style="color: #a1a1aa; font-size: 13px; margin-bottom: 10px;">يقطع القائمة الآلية وينقل المشاهدين للحدث الطارئ مع إظهار علامة (مباشر).</p>
             <div class="form-group">
                 <input type="text" id="emergencyInput" placeholder="أدخل رابط يوتيوب للحدث المباشر...">
             </div>
             <div class="status-box">
-                <button class="status-btn btn-emergency" onclick="startEmergency()">قطع وبدء البث الطارئ</button>
-                <button class="status-btn btn-end-emergency" onclick="endEmergency()">إنهاء الطوارئ (العودة للبرنامج)</button>
+                <button onclick="startEmergency()" style="background: #ef4444;">قطع وبدء البث الطارئ</button>
+                <button onclick="endEmergency()" style="background: #10b981;">إنهاء الطوارئ (العودة للبرنامج)</button>
             </div>
         </div>
 
-        <!-- 3. وضع الشاشة -->
         <div class="card">
-            <h2>وضع البث والعرض (اللوجو)</h2>
+            <h2>وضع البث والعرض (مؤشر لايف)</h2>
             <div class="status-box">
-                <button class="status-btn btn-live" onclick="changeMode('live')">مباشر (Live)</button>
-                <button class="status-btn btn-ad" onclick="changeMode('ad')">إعلانات (Ad)</button>
-                <button class="status-btn btn-rec" onclick="changeMode('recorded')">مسجل (Recorded)</button>
+                <button class="status-btn btn-live" onclick="changeMode('live')">مباشر (إظهار المؤشر)</button>
+                <button class="status-btn btn-ad" onclick="changeMode('ad')">إعلانات (إخفاء الكل)</button>
+                <button class="status-btn btn-rec" onclick="changeMode('recorded')">مسجل (إخفاء المؤشر)</button>
             </div>
         </div>
 
-        <!-- 4. التحكم في الشعار -->
         <div class="card">
-            <h2>التحكم في الشعار والرمز</h2>
+            <h2>الأشرطة الإخبارية والشعار</h2>
             <div class="form-group">
-                <label>حالة الشعار على الشاشة:</label>
-                <select id="logoVisibility" onchange="toggleLogo()">
-                    <option value="show">إظهار الشعار</option>
-                    <option value="hide">إخفاء الشعار</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <input type="text" id="logoUrlInput" placeholder="أدخل رابط صورة الشعار البديل...">
-            </div>
-            <button onclick="updateLogoImage()">تحديث صورة الشعار</button>
-        </div>
-
-        <!-- 5. الأشرطة الإخبارية -->
-        <div class="card">
-            <h2>إدارة الأشرطة الإخبارية</h2>
-            
-            <div class="form-group">
-                <label>الشريط العلوي (مقابلة خاصة):</label>
                 <select id="tickerTopVisibility" onchange="toggleTopTicker()" style="margin-bottom: 5px;">
-                    <option value="show">إظهار الشريط</option>
+                    <option value="show">إظهار شريط مقابلة خاصة</option>
                     <option value="hide">إخفاء الشريط</option>
                 </select>
                 <input type="text" id="topTickerInput" placeholder="النص العلوي...">
                 <button onclick="updateTopTicker()" style="margin-bottom: 15px;">تحديث العلوي</button>
             </div>
-
             <div class="form-group">
-                <label style="color: #ef4444;">شريط عاجل الرئيسي (الأحمر):</label>
-                <input type="text" id="breakingInput" placeholder="نص الخبر العاجل...">
+                <input type="text" id="breakingInput" placeholder="نص الخبر العاجل الأحمر...">
                 <button onclick="updateBreaking()" style="background: #ef4444; margin-bottom: 15px;">تحديث العاجل</button>
             </div>
-
             <div class="form-group">
-                <label>شريط الأخبار السفلي (الأبيض):</label>
-                <input type="text" id="newsInput" placeholder="نص الأخبار...">
+                <input type="text" id="newsInput" placeholder="نص الأخبار السفلي...">
                 <button onclick="updateNewsTicker()">تحديث السفلي</button>
             </div>
+            <div class="form-group" style="margin-top: 15px;">
+                <select id="logoVisibility" onchange="toggleLogo()">
+                    <option value="show">إظهار الشعار</option><option value="hide">إخفاء الشعار</option>
+                </select>
+            </div>
         </div>
 
-        <!-- 6. رسائل الإدارة في الشات -->
         <div class="card">
-            <h2>إرسال إعلان رسمي في المحادثة</h2>
-            <div class="form-group">
-                <textarea id="adminMsgInput" rows="3" placeholder="اكتب رسالة الإدارة لتظهر للمشاهدين فوراً..."></textarea>
-            </div>
-            <button onclick="sendAdminMessage()">إرسال الإعلان للشات</button>
-        </div>
-
-        <!-- 7. الأمان (تغيير كلمة المرور) -->
-        <div class="card" style="border-color: #f59e0b;">
-            <h2 style="color: #f59e0b;">🔐 إعدادات الأمان</h2>
-            <div class="form-group">
-                <input type="text" id="newUsername" placeholder="اسم المستخدم الجديد (اختياري)">
-            </div>
-            <div class="form-group">
-                <input type="password" id="newPassword" placeholder="كلمة المرور الجديدة (اختياري)">
-            </div>
-            <button onclick="changeCredentials()" style="background: #f59e0b;">تحديث بيانات الدخول</button>
+            <h2>إعلان رسمي في المحادثة</h2>
+            <div class="form-group"><textarea id="adminMsgInput" rows="3" placeholder="الرسالة..."></textarea></div>
+            <button onclick="sendAdminMessage()">إرسال للشات</button>
         </div>
     </div>
 
     <script>
         let adminToken = '';
-
-        // --- نظام تسجيل الدخول الآمن ---
         async function login() {
             const u = document.getElementById('adminUser').value;
             const p = document.getElementById('adminPass').value;
             try {
-                const response = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: u, password: p })
-                });
+                const response = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
                 const data = await response.json();
                 if(data.success) {
-                    adminToken = data.token; // حفظ التوكن لتغيير الباسورد لاحقاً
+                    adminToken = data.token;
                     document.getElementById('loginOverlay').style.display = 'none';
                     document.getElementById('adminContainer').style.display = 'block';
-                } else {
-                    document.getElementById('loginError').style.display = 'block';
-                }
-            } catch(e) {
-                alert('خطأ في الاتصال بالسيرفر! تأكد أن السيرفر يعمل.');
-            }
-        }
-
-        // --- تغيير بيانات الدخول ---
-        async function changeCredentials() {
-            const newU = document.getElementById('newUsername').value;
-            const newP = document.getElementById('newPassword').value;
-            
-            if(!newU && !newP) return alert('يرجى إدخال بيانات جديدة أولاً');
-
-            try {
-                const response = await fetch('/api/change-credentials', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ newUsername: newU, newPassword: newP, token: adminToken })
-                });
-                const data = await response.json();
-                if(data.success) {
-                    alert('✅ تم تحديث بيانات الدخول بنجاح! سيتم تطبيقها فوراً.');
-                    document.getElementById('newUsername').value = '';
-                    document.getElementById('newPassword').value = '';
-                } else {
-                    alert('حدث خطأ غير مصرح به.');
-                }
-            } catch(e) {
-                alert('خطأ في الاتصال بالسيرفر.');
-            }
+                } else { document.getElementById('loginError').style.display = 'block'; }
+            } catch(e) { alert('خطأ في الاتصال بالسيرفر!'); }
         }
 
         const socket = io();
         const statusEl = document.getElementById('connStatus');
 
-        socket.on('connect', () => {
-            statusEl.innerText = "🟢 متصل وجاهز للتحكم";
-            statusEl.style.background = "#064e3b";
-            statusEl.style.color = "#34d399";
+        socket.on('connect', () => { statusEl.innerText = "🟢 متصل وجاهز للتحكم"; statusEl.style.background = "#064e3b"; statusEl.style.color = "#34d399"; });
+        socket.on('disconnect', () => { statusEl.innerText = "🔴 تم فقدان الاتصال!"; statusEl.style.background = "#7f1d1d"; statusEl.style.color = "#fca5a5"; });
+        socket.on('viewers count', (count) => { document.getElementById('vCount').innerText = count; });
+
+        // --- نظام قائمة التشغيل الآلية ---
+        socket.on('playlist updated', (list) => {
+            const ul = document.getElementById('playlistView');
+            ul.innerHTML = '';
+            if(list.length === 0) { ul.innerHTML = '<li>لا يوجد فيديوهات في القائمة حالياً...</li>'; return; }
+            list.forEach((item, index) => {
+                ul.innerHTML += `<li>${index + 1}. المدة: ${item.duration}ث | الرابط: <span style="color:#60a5fa">${item.url.substring(0,35)}...</span></li>`;
+            });
         });
 
-        socket.on('disconnect', () => {
-            statusEl.innerText = "🔴 تم فقدان الاتصال!";
-            statusEl.style.background = "#7f1d1d";
-            statusEl.style.color = "#fca5a5";
-        });
-
-        socket.on('viewers count', (count) => {
-            document.getElementById('vCount').innerText = count;
-        });
-
-        // --- ⏰ أوامر المجدول الذكي ---
-        function setScheduledProgram() {
-            const url = document.getElementById('scheduleInput').value;
-            if(url) {
-                socket.emit('set scheduled program', { url });
-                alert('✅ تم تشغيل البرنامج. العداد يعمل الآن لحفظ الوقت.');
-            }
+        function addToPlaylist() {
+            const url = document.getElementById('plUrl').value;
+            const duration = document.getElementById('plDuration').value;
+            if(url && duration) {
+                socket.emit('add to playlist', { url, duration: parseInt(duration) });
+                document.getElementById('plUrl').value = '';
+                document.getElementById('plDuration').value = '';
+            } else { alert('يرجى إدخال الرابط والمدة بالثواني!'); }
         }
 
+        function clearPlaylist() {
+            if(confirm('هل أنت متأكد من مسح كل القائمة؟')) socket.emit('clear playlist');
+        }
+
+        function startPlaylist() {
+            socket.emit('start playlist');
+            alert('▶️ تم بدء البث الآلي للقائمة بنجاح!');
+        }
+
+        // --- الطوارئ وباقي الوظائف ---
         function startEmergency() {
             const url = document.getElementById('emergencyInput').value;
-            if(url) {
-                socket.emit('set emergency stream', { url });
-                alert('🚨 تم قطع البرنامج والانتقال للبث الطارئ فوراً!');
-            }
+            if(url) { socket.emit('set emergency stream', { url }); alert('🚨 تم الانتقال للبث الطارئ وإظهار علامة مباشر!'); }
         }
 
         function endEmergency() {
             socket.emit('end emergency');
-            alert('✅ تم إنهاء الطوارئ. المشاهدون سيعودون للبرنامج الأصلي في الدقيقة الصحيحة.');
+            alert('✅ تم إنهاء الطوارئ. سيتم استكمال القائمة الآلية وإخفاء علامة مباشر.');
         }
 
-        // --- باقي وظائف التحكم ---
-        function toggleLogo() {
-            const state = document.getElementById('logoVisibility').value;
-            socket.emit('update logo control', { action: 'visibility', state: state });
-        }
-
-        function updateLogoImage() {
-            const url = document.getElementById('logoUrlInput').value;
-            if(url) socket.emit('update logo control', { action: 'image', url: url });
-        }
-
-        function toggleTopTicker() {
-            const state = document.getElementById('tickerTopVisibility').value;
-            socket.emit('update top ticker control', { action: 'visibility', state: state });
-        }
-
-        function updateTopTicker() {
-            const text = document.getElementById('topTickerInput').value;
-            if(text) socket.emit('update top ticker text', { text: text });
-        }
-
-        function updateBreaking() {
-            const text = document.getElementById('breakingInput').value;
-            if(text) socket.emit('update breaking', { text: text });
-        }
-
-        function updateNewsTicker() {
-            const news = document.getElementById('newsInput').value;
-            if(news) socket.emit('update news ticker', { text: news });
-        }
-
-        function changeMode(mode) { 
-            socket.emit('admin mode change', { mode }); 
-        }
-
+        function toggleLogo() { socket.emit('update logo control', { action: 'visibility', state: document.getElementById('logoVisibility').value }); }
+        function toggleTopTicker() { socket.emit('update top ticker control', { action: 'visibility', state: document.getElementById('tickerTopVisibility').value }); }
+        function updateTopTicker() { const text = document.getElementById('topTickerInput').value; if(text) socket.emit('update top ticker text', { text }); }
+        function updateBreaking() { const text = document.getElementById('breakingInput').value; if(text) socket.emit('update breaking', { text }); }
+        function updateNewsTicker() { const text = document.getElementById('newsInput').value; if(text) socket.emit('update news ticker', { text }); }
+        function changeMode(mode) { socket.emit('admin mode change', { mode }); }
         function sendAdminMessage() {
             const text = document.getElementById('adminMsgInput').value;
-            if(text) {
-                socket.emit('chat message', { user: 'إدارة القناة 🛡️', text, color: '#ff3333' });
-                document.getElementById('adminMsgInput').value = '';
-            }
+            if(text) { socket.emit('chat message', { user: 'إدارة القناة 🛡️', text, color: '#ff3333' }); document.getElementById('adminMsgInput').value = ''; }
         }
     </script>
 </body>
