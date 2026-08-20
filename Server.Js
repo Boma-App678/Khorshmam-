@@ -28,7 +28,7 @@ const io = new Server(server, {
     maxHttpBufferSize: 1e8 // للسماح بنقل بيانات الفيديو بدون تقطيع
 });
 
-// إعداد خادم البث المباشر RTMP (لا يزال يعمل كاحتياطي)
+// إعداد خادم البث المباشر RTMP
 const nmsConfig = {
     rtmp: { port: 8080, chunk_size: 60000, gop_cache: true, ping: 30, ping_timeout: 60 },
     http: { port: 8000, allow_origin: '*' }
@@ -36,7 +36,7 @@ const nmsConfig = {
 const nms = new NodeMediaServer(nmsConfig);
 nms.run();
 
-// مسار تسجيل الدخول (API) لتأمين لوحة التحكم مستقبلاً
+// مسار تسجيل الدخول
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     if(username === 'admin' && password === '123456') {
@@ -46,16 +46,21 @@ app.post('/api/login', (req, res) => {
     }
 });
 
-// --- 🧠 الذاكرة الذكية للسيرفر ---
+// --- 🧠 الذاكرة الذكية للسيرفر (تم تحديثها لنظام المجدول) ---
 let appState = {
-    streamUrl: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
     mode: 'live',
     topTickerVisibility: 'show',
     topTickerText: 'عاجل | تحديثات جديدة في منظومة خورشمام',
     breakingText: 'مناقشة أهم التطورات الخدمية في المنطقة',
     newsText: 'حالة الطقس: استقرار درجات الحرارة خلال الأيام القادمة',
     logoVisibility: 'show',
-    logoUrl: 'https://i.postimg.cc/5txxv6Xv/1000865860-removebg-preview.png'
+    logoUrl: 'https://i.postimg.cc/5txxv6Xv/1000865860-removebg-preview.png',
+    
+    // ⏰ متغيرات المجدول الذكي
+    isEmergency: false, // هل نحن في وضع البث الطارئ الآن؟
+    emergencyUrl: '', // رابط البث الطارئ/المباشر
+    scheduledProgramUrl: 'https://www.youtube.com/watch?v=5qap5aO4i9A', // رابط البرنامج المسجل أو الإعلانات
+    programStartTime: Date.now(), // وقت بدء البرنامج المسجل
 };
 
 let liveViewers = 0; // عداد المشاهدين
@@ -63,12 +68,29 @@ let liveViewers = 0; // عداد المشاهدين
 io.on('connection', async (socket) => {
     console.log(`[+] متصل جديد: ${socket.id}`);
     
-    // زيادة عدد المشاهدين وإرسال الرقم للجميع
     liveViewers++;
     io.emit('viewers count', liveViewers);
 
-    // 1. فور دخول أي مشاهد جديد، نرسل له الحالة الحالية
-    socket.emit('update stream url', { url: appState.streamUrl });
+    // 1. حساب التوقيت الدقيق للمشاهد الجديد
+    let currentOffset = 0;
+    let currentUrl = '';
+    
+    if (appState.isEmergency) {
+        currentUrl = appState.emergencyUrl;
+        currentOffset = 0; // البث المباشر/الطارئ لا يحتاج تقديم زمن
+    } else {
+        currentUrl = appState.scheduledProgramUrl;
+        // حساب عدد الثواني التي مرت منذ بداية البرنامج
+        currentOffset = Math.floor((Date.now() - appState.programStartTime) / 1000);
+    }
+    
+    // إرسال الرابط مع نقطة البداية (الثواني)
+    socket.emit('update stream url', { 
+        url: currentUrl, 
+        offset: currentOffset,
+        isEmergency: appState.isEmergency 
+    });
+
     socket.emit('admin mode change', { mode: appState.mode });
     socket.emit('update top ticker control', { action: 'visibility', state: appState.topTickerVisibility });
     socket.emit('update top ticker text', { text: appState.topTickerText });
@@ -85,13 +107,56 @@ io.on('connection', async (socket) => {
         console.log("خطأ في جلب المحادثات السابقة");
     }
 
-    // --- 🚀 وسيط البث المباشر (WebRTC / WebSockets) ---
+    // --- 🚀 وسيط البث المباشر (WebRTC) ---
     socket.on('broadcast stream', (data) => {
-        // استقبال بيانات الفيديو من لوحة الإدارة وإرسالها فوراً للمشاهدين
         socket.broadcast.emit('receive stream', data);
     });
 
-    // 2. استقبال التعديلات من لوحة الإدارة
+    // --- ⏰ أوامر المجدول الذكي للتحكم في القناة ---
+    
+    // أمر 1: تشغيل برنامج أو إعلان جديد
+    socket.on('set scheduled program', (data) => {
+        if (data.url) {
+            appState.scheduledProgramUrl = data.url;
+            appState.programStartTime = Date.now(); // تصفير العداد وبدء البرنامج الآن
+            appState.isEmergency = false;
+            
+            io.emit('update stream url', { 
+                url: appState.scheduledProgramUrl, 
+                offset: 0,
+                isEmergency: false
+            });
+        }
+    });
+
+    // أمر 2: قطع البرنامج والانتقال لحدث طارئ/مباشر
+    socket.on('set emergency stream', (data) => {
+        if (data.url) {
+            appState.emergencyUrl = data.url;
+            appState.isEmergency = true;
+            
+            io.emit('update stream url', { 
+                url: appState.emergencyUrl, 
+                offset: 0,
+                isEmergency: true
+            });
+        }
+    });
+
+    // أمر 3: إنهاء الطوارئ والعودة للبرنامج الأصلي
+    socket.on('end emergency', () => {
+        appState.isEmergency = false;
+        // حساب الدقائق والثواني التي مرت من البرنامج أثناء الطوارئ
+        let passedSeconds = Math.floor((Date.now() - appState.programStartTime) / 1000);
+        
+        io.emit('update stream url', { 
+            url: appState.scheduledProgramUrl, 
+            offset: passedSeconds,
+            isEmergency: false
+        });
+    });
+
+    // --- باقي أوامر لوحة الإدارة ---
     socket.on('chat message', async (msg) => {
         try { await new Chat({ msg }).save(); } catch(e) {}
         io.emit('chat message', msg);
@@ -128,11 +193,6 @@ io.on('connection', async (socket) => {
         io.emit('update logo control', data);
     });
 
-    socket.on('update stream url', (data) => {
-        if (data.url) appState.streamUrl = data.url;
-        io.emit('update stream url', data);
-    });
-
     socket.on('disconnect', () => {
         console.log(`[-] غادر المستخدم: ${socket.id}`);
         liveViewers--;
@@ -142,5 +202,5 @@ io.on('connection', async (socket) => {
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-    console.log(`🚀 خادم تلفزيون خورشمام يعمل بنجاح على المنفذ ${PORT}`);
+    console.log(`🚀 خادم التلفزيون والمجدول الذكي يعمل بنجاح على المنفذ ${PORT}`);
 });
