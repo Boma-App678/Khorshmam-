@@ -28,8 +28,9 @@ const io = new Server(server, {
 });
 
 // إعداد خادم البث المباشر RTMP
+// تم تغيير المنفذ هنا من 1935 إلى 8080 لتخطي حظر شبكات الإنترنت
 const nmsConfig = {
-    rtmp: { port: 1935, chunk_size: 60000, gop_cache: true, ping: 30, ping_timeout: 60 },
+    rtmp: { port: 8080, chunk_size: 60000, gop_cache: true, ping: 30, ping_timeout: 60 },
     http: { port: 8000, allow_origin: '*' }
 };
 const nms = new NodeMediaServer(nmsConfig);
