@@ -37,7 +37,7 @@
         .fallback-logo { display: none; align-items: center; gap: 8px; font-size: 20px; font-weight: 900; color: white; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); margin-top: 15px; margin-right: 15px; }
         .tv-logo-icon { background: #ff3333; color: white; padding: 2px 8px; border-radius: 5px; font-size: 16px; }
 
-        .tv-live { background-color: rgba(255, 51, 51, 0.9); color: white; padding: 5px 15px; border-radius: 3px; font-weight: 700; display: flex; align-items: center; gap: 8px; height: fit-content; margin-top: 15px; margin-left: 15px; }
+        .tv-live { background-color: rgba(255, 51, 51, 0.9); color: white; padding: 5px 15px; border-radius: 3px; font-weight: 700; display: flex; align-items: center; gap: 8px; height: fit-content; margin-top: 15px; margin-left: 15px; transition: opacity 0.3s ease; }
         .pulsing-dot { width: 8px; height: 8px; background-color: white; border-radius: 50%; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.2; } 100% { opacity: 1; } }
 
@@ -91,7 +91,6 @@
     <main class="main-layout">
         <div class="video-column">
             <div class="tv-screen-container" id="playerContainer">
-                <!-- المشغل الافتراضي -->
                 <video id="main-player" controls preload="auto" poster="placeholder.jpg" muted autoplay></video>
 
                 <div id="tvGraphics" class="tv-graphics-layer">
@@ -150,16 +149,26 @@
     <script>
         const socket = io();
         const statusIcon = document.getElementById('viewerStatus');
+        const liveBadge = document.getElementById('liveBadge');
         
         socket.on('connect', () => { statusIcon.textContent = '🟢'; });
         socket.on('disconnect', () => { statusIcon.textContent = '🔴'; });
 
         let hlsInstance = null;
 
-        function loadStream(url) {
+        // --- ⏰ عقل المجدول الذكي (تم تحديثه لفهم الزمن) ---
+        function loadStream(url, offsetSeconds = 0, isEmergency = false) {
             const container = document.getElementById('playerContainer');
             let graphicsLayer = document.getElementById('tvGraphics');
             let graphicsHTML = graphicsLayer ? graphicsLayer.outerHTML : '';
+
+            // تحكم بعلامة (مباشر) تلقائياً
+            if(isEmergency) {
+                if(liveBadge) liveBadge.style.opacity = '1';
+                offsetSeconds = 0; // في البث المباشر نبدأ من اللحظة الحالية (صفر)
+            } else {
+                if(liveBadge) liveBadge.style.opacity = '0';
+            }
 
             let youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|live|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
             let match = url.match(youtubeRegex);
@@ -168,13 +177,17 @@
                 let videoId = match[1];
                 if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
                 
+                // دمج (start) في الرابط لتشغيل الفيديو من الزمن الذي حسبه السيرفر
+                let iframeUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&enablejsapi=1&start=${offsetSeconds}`;
+                
                 container.innerHTML = `
-                    <iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&enablejsapi=1" 
+                    <iframe src="${iframeUrl}" 
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
                             allowfullscreen></iframe>
                     ${graphicsHTML}
                 `;
             } else {
+                // إذا كان الرابط m3u8 أو mp4
                 if (!document.getElementById('main-player')) {
                     container.innerHTML = `
                         <video id="main-player" controls preload="auto" poster="placeholder.jpg" muted autoplay></video>
@@ -183,29 +196,36 @@
                 }
                 
                 const video = document.getElementById('main-player');
+                
                 if (url.includes('.m3u8') && window.Hls && Hls.isSupported()) {
                     if (hlsInstance) hlsInstance.destroy();
                     hlsInstance = new Hls();
                     hlsInstance.loadSource(url);
                     hlsInstance.attachMedia(video);
                     hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+                        video.currentTime = offsetSeconds; // التقديم للزمن الصحيح
                         video.play().catch(e => console.log("التشغيل التلقائي يحتاج تفاعل"));
                     });
                 } else if (video) {
                     video.src = url;
                     video.addEventListener('loadedmetadata', () => {
+                        video.currentTime = offsetSeconds; // التقديم للزمن الصحيح
                         video.play().catch(e => console.log(e));
                     });
                 }
             }
         }
         
-        // الأوامر من السيرفر
-        socket.on('update stream url', (data) => { if (data.url) loadStream(data.url); });
+        // استقبال أمر تغيير الرابط أو التوقيت من السيرفر (المجدول الذكي)
+        socket.on('update stream url', (data) => { 
+            if (data.url) {
+                loadStream(data.url, data.offset || 0, data.isEmergency || false); 
+            }
+        });
 
+        // --- باقي وظائف تحديث التصميم ---
         socket.on('admin mode change', (data) => {
             const graphicsLayer = document.getElementById('tvGraphics');
-            const liveBadge = document.getElementById('liveBadge');
             if (!graphicsLayer) return;
             if (data.mode === 'live') {
                 graphicsLayer.classList.remove('hide-graphics');
@@ -218,7 +238,6 @@
             }
         });
 
-        // تحديث النصوص
         socket.on('update top ticker text', (data) => {
             const el = document.getElementById('topTickerTextDisplay');
             if (el && data.text) el.textContent = data.text;
@@ -258,7 +277,6 @@
             const newMessage = document.createElement('div');
             newMessage.className = 'chat-message';
             
-            // تحديد اللون والاسم للرسائل القديمة لو كانت مجهولة
             const userName = msgData.user || 'مشاهد';
             const userColor = msgData.color || '#10b981';
             const msgText = msgData.text || msgData.msg || '';
@@ -274,12 +292,10 @@
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 
-        // استقبال أرشيف الرسائل القديمة عند الدخول
         socket.on('chat history', (messages) => {
             messages.forEach(msg => appendMessage(msg));
         });
 
-        // استقبال رسالة جديدة
         socket.on('chat message', (msgData) => {
             appendMessage(msgData);
         });
@@ -287,7 +303,6 @@
         function sendMessage() {
             const messageText = chatInput.value.trim();
             if (messageText === '') return;
-            // الإرسال للسيرفر الذي سيقوم بحفظها ثم بثها
             socket.emit('chat message', { user: 'مشاهد', text: messageText, color: '#10b981' });
             chatInput.value = ''; 
         }
