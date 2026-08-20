@@ -4,33 +4,44 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const NodeMediaServer = require('node-media-server');
 const path = require('path');
-const mongoose = require('mongoose');
+const mongoose = require('mongoose'); // مكتبة قاعدة البيانات
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json()); // لدعم نظام تسجيل الدخول الآمن
 
+// السماح بقراءة ملفات HTML من نفس المجلد
 app.use(express.static(path.join(__dirname, '')));
 
+// الاتصال بقاعدة البيانات (MongoDB) لحفظ المحادثات
 mongoose.connect('mongodb://127.0.0.1:27017/khorshamam-tv')
     .then(() => console.log('✅ تم الاتصال بقاعدة البيانات بنجاح'))
     .catch(err => console.log('⚠️ قاعدة البيانات غير متصلة مؤقتاً'));
 
+// مخطط حفظ الدردشة
 const chatSchema = new mongoose.Schema({ msg: String, time: { type: Date, default: Date.now } });
 const Chat = mongoose.model('Chat', chatSchema);
 
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*", methods: ["GET", "POST"] }, maxHttpBufferSize: 1e8 });
+const io = new Server(server, {
+    cors: { origin: "*", methods: ["GET", "POST"] },
+    maxHttpBufferSize: 1e8 // للسماح بنقل بيانات الفيديو بدون تقطيع
+});
 
+// إعداد خادم البث المباشر RTMP
 const nmsConfig = {
     rtmp: { port: 8080, chunk_size: 60000, gop_cache: true, ping: 30, ping_timeout: 60 },
     http: { port: 8000, allow_origin: '*' }
 };
 const nms = new NodeMediaServer(nmsConfig);
 nms.run();
+// --- نظام الحماية وتسجيل الدخول ---
+let adminCredentials = {
+    username: 'Khorshmam',
+    password: 'K157315'
+};
 
-let adminCredentials = { username: 'Khorshmam', password: 'K157315' };
-
+// مسار تسجيل الدخول
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     if(username === adminCredentials.username && password === adminCredentials.password) {
@@ -40,6 +51,7 @@ app.post('/api/login', (req, res) => {
     }
 });
 
+// مسار تغيير كلمة المرور واسم المستخدم
 app.post('/api/change-credentials', (req, res) => {
     const { newUsername, newPassword, token } = req.body;
     if(token === 'khorshamam-secure-token') {
@@ -190,4 +202,6 @@ io.on('connection', async (socket) => {
 });
 
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => { console.log(`🚀 خادم التلفزيون يعمل بنجاح على المنفذ ${PORT}`); });
+server.listen(PORT, () => {
+    console.log(`🚀 خادم التلفزيون والمجدول الذكي يعمل بنجاح على المنفذ ${PORT}`);
+});
