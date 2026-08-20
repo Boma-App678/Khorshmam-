@@ -15,21 +15,28 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Cairo', sans-serif; }
         body { background-color: #09090c; color: #ffffff; padding: 20px; }
+
         .main-layout { display: flex; gap: 20px; max-width: 1400px; margin: 0 auto; height: 85vh; }
         .video-column { flex: 7; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; }
         .chat-column { flex: 3; background: #1a1a24; border-radius: 10px; border: 1px solid #333; display: flex; flex-direction: column; overflow: hidden; min-width: 300px; }
+
         .tv-screen-container { position: relative; width: 100%; aspect-ratio: 16 / 9; background-color: #000; border-radius: 10px; overflow: hidden; box-shadow: 0 15px 50px rgba(0,0,0,0.8); border: 2px solid #333; flex-shrink: 0; }
-        .tv-screen-container video, .tv-screen-container iframe { width: 100%; height: 100%; object-fit: cover; outline: none; border: none; position: absolute; top: 0; left: 0; z-index: 1; }
+        
+        .tv-screen-container video, .tv-screen-container iframe { 
+            width: 100%; height: 100%; object-fit: cover; outline: none; border: none; position: absolute; top: 0; left: 0; z-index: 1; 
+        }
+
         .tv-graphics-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; transition: opacity 0.8s ease, visibility 0.8s ease; }
         .hide-graphics { opacity: 0; visibility: hidden; }
+
         .tv-top-bar { position: absolute; top: 0; left: 0; right: 0; width: 100%; display: flex; justify-content: space-between; align-items: flex-start; padding: 0; }
         .tv-logo-container { display: flex; align-items: flex-start; margin-top: -5px; margin-right: -15px; perspective: 1000px; }
         .logo-img { width: 85px; height: auto; filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.6)); animation: broadcast-flip 12s infinite cubic-bezier(0.4, 0, 0.2, 1); }
         @keyframes broadcast-flip { 0% { transform: rotateY(0deg); } 10% { transform: rotateY(360deg); } 100% { transform: rotateY(360deg); } }
+
         .fallback-logo { display: none; align-items: center; gap: 8px; font-size: 20px; font-weight: 900; color: white; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); margin-top: 15px; margin-right: 15px; }
         .tv-logo-icon { background: #ff3333; color: white; padding: 2px 8px; border-radius: 5px; font-size: 16px; }
-        
-        /* مؤشر لايف محدد الافتراضي مخفي */
+
         .tv-live { background-color: rgba(255, 51, 51, 0.9); color: white; padding: 5px 15px; border-radius: 3px; font-weight: 700; display: flex; align-items: center; gap: 8px; height: fit-content; margin-top: 15px; margin-left: 15px; transition: opacity 0.3s ease; opacity: 0; }
         .pulsing-dot { width: 8px; height: 8px; background-color: white; border-radius: 50%; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.2; } 100% { opacity: 1; } }
@@ -50,16 +57,53 @@
 
         .chat-header { padding: 15px; background: #232330; border-bottom: 1px solid #333; font-size: 18px; font-weight: 700; text-align: center; color: #ff3333; position: relative; }
         #viewerStatus { position: absolute; left: 15px; top: 18px; font-size: 14px; }
+        
         .chat-messages { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 15px; scroll-behavior: smooth; }
-        .chat-message { display: flex; gap: 10px; }
+        .chat-messages::-webkit-scrollbar { width: 5px; }
+        .chat-messages::-webkit-scrollbar-thumb { background: #444; border-radius: 5px; }
+        .chat-message { display: flex; gap: 10px; animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .avatar { width: 35px; height: 35px; border-radius: 50%; background: #3b82f6; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; flex-shrink: 0; color: white; }
         .msg-content { display: flex; flex-direction: column; }
         .msg-user { font-size: 14px; font-weight: 700; color: #94a3b8; margin-bottom: 3px; }
         .msg-text { font-size: 15px; line-height: 1.4; color: #e2e8f0; word-break: break-word; }
         .chat-input-area { padding: 15px; background: #232330; border-top: 1px solid #333; display: flex; gap: 10px; align-items: center; flex-direction: row-reverse; }
         .chat-input { flex: 1; padding: 10px 15px; border-radius: 20px; border: 1px solid #444; background: #0f0f13; color: white; outline: none; font-size: 15px; text-align: right; }
-        .send-btn { background: #ff3333; color: white; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer; }
+        .send-btn { background: #ff3333; color: white; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer; transition: background 0.2s; flex-shrink: 0; }
+        .send-btn:hover { background: #cc0000; }
+        .send-btn:active { transform: scale(0.95); }
+
         @media (max-width: 900px) { .main-layout { flex-direction: column; height: auto; } .chat-column { height: 400px; } }
+        @media (max-width: 600px) {
+            body { padding: 5px; } 
+            .main-layout { gap: 10px; }
+            .tv-top-bar { top: 0; padding: 0; } 
+            .tv-logo-container { margin-top: -2px; margin-right: -5px; }
+            .logo-img { width: 50px; } 
+            .fallback-logo { font-size: 12px; margin-top: 5px; margin-right: 5px; }
+            .tv-logo-icon { font-size: 10px; padding: 1px 4px; } 
+            .tv-live { font-size: 10px; padding: 2px 6px; gap: 4px; border-radius: 2px; margin-top: 5px; margin-left: 5px; }
+            .pulsing-dot { width: 5px; height: 5px; } 
+            
+            /* Adjusting tickers for mobile */
+            .multi-ticker-container { bottom: 5px; width: 96%; left: 2%; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+            .ticker-top { font-size: 10px; padding: 2px 5px; border-radius: 4px 4px 0 0; } 
+            .ticker-top-tag { margin-left: 5px; font-size: 10px; }
+            .ticker-middle { height: 22px; } 
+            .ticker-middle .ticker-label { font-size: 11px; padding: 0 8px; }
+            .ticker-bottom { height: 20px; border-radius: 0 0 4px 4px; } 
+            .ticker-bottom .ticker-label { font-size: 10px; padding: 0 8px; }
+            .ticker-item { font-size: 11px; padding: 0 10px; }
+            
+            /* Chat area on mobile */
+            .chat-column { height: 350px; }
+            .chat-header { padding: 10px; font-size: 15px; }
+            .chat-messages { padding: 10px; gap: 10px; }
+            .msg-text { font-size: 13px; }
+            .chat-input-area { padding: 10px; }
+            .chat-input { padding: 8px 12px; font-size: 13px; }
+            .send-btn { padding: 8px 15px; font-size: 13px; }
+        }
     </style>
 </head>
 <body>
@@ -67,12 +111,16 @@
     <main class="main-layout">
         <div class="video-column">
             <div class="tv-screen-container" id="playerContainer">
-                <video id="main-player" controls preload="auto" muted autoplay></video>
+                <video id="main-player" controls preload="auto" poster="placeholder.jpg" muted autoplay></video>
 
                 <div id="tvGraphics" class="tv-graphics-layer">
                     <div class="tv-top-bar">
                         <div id="logoWrapper" class="tv-logo-container">
-                            <img id="mainLogoImg" src="https://i.postimg.cc/5txxv6Xv/1000865860-removebg-preview.png" class="logo-img">
+                            <img id="mainLogoImg" src="https://i.postimg.cc/5txxv6Xv/1000865860-removebg-preview.png" alt="شعار تلفزيون خورشمام" class="logo-img" 
+                                 onerror="this.style.display='none'; document.getElementById('fallbackLogo').style.display='flex';">
+                            <div id="fallbackLogo" class="fallback-logo">
+                                <span class="tv-logo-icon">TV</span> <span>خورشمام</span>
+                            </div>
                         </div>
                         <div id="liveBadge" class="tv-live"><span class="pulsing-dot"></span> مباشر</div>
                     </div>
@@ -80,18 +128,37 @@
                     <div class="multi-ticker-container">
                         <div id="tickerTopElement" class="ticker-top">
                             <span class="ticker-top-tag">مقابلة خاصة |</span> 
-                            <span id="topTickerTextDisplay">عاجل | تحديثات جديدة</span>
+                            <span id="topTickerTextDisplay">عاجل | تحديثات جديدة في منظومة خورشمام</span>
                         </div>
-                        <div class="ticker-middle"><div class="ticker-label">عاجل</div><div class="ticker-wrap"><div class="ticker-move"><span id="breakingTextDisplay" class="ticker-item">أهم التطورات</span></div></div></div>
-                        <div class="ticker-bottom"><div class="ticker-label">أخبار</div><div class="ticker-wrap"><div class="ticker-move" style="animation-duration: 35s;"><span id="newsTextDisplay" class="ticker-item">الطقس</span></div></div></div>
+                        <div class="ticker-middle">
+                            <div class="ticker-label">عاجل</div>
+                            <div class="ticker-wrap"><div class="ticker-move"><span id="breakingTextDisplay" class="ticker-item">مناقشة أهم التطورات الخدمية في المنطقة</span></div></div>
+                        </div>
+                        <div class="ticker-bottom">
+                            <div class="ticker-label">أخبار</div>
+                            <div class="ticker-wrap"><div class="ticker-move" style="animation-duration: 35s;"><span id="newsTextDisplay" class="ticker-item">حالة الطقس: استقرار درجات الحرارة خلال الأيام القادمة</span></div></div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
         <div class="chat-column">
-            <div class="chat-header">المحادثة المباشرة <span id="viewerStatus">🔴</span></div>
-            <div class="chat-messages" id="chatMessagesContainer"></div>
+            <div class="chat-header">
+                المحادثة المباشرة
+                <span id="viewerStatus" title="حالة الاتصال بالسيرفر">🔴</span>
+            </div>
+            
+            <div class="chat-messages" id="chatMessagesContainer">
+                <div class="chat-message">
+                    <div class="avatar" style="background:#ff3333;">إ</div>
+                    <div class="msg-content">
+                        <span class="msg-user" style="color:#ff3333;">إدارة القناة</span>
+                        <span class="msg-text">أهلاً بكم في تلفزيون خورشمام. يمكنكم الآن المشاركة في الدردشة المباشرة!</span>
+                    </div>
+                </div>
+            </div>
+
             <div class="chat-input-area">
                 <input type="text" id="chatInput" class="chat-input" placeholder="اكتب رسالة...">
                 <button id="sendBtn" class="send-btn">إرسال</button>
@@ -109,10 +176,18 @@
 
         let hlsInstance = null;
 
-        function loadStream(url, offsetSeconds = 0) {
+        function loadStream(url, offsetSeconds = 0, isEmergency = false) {
             const container = document.getElementById('playerContainer');
             let graphicsLayer = document.getElementById('tvGraphics');
             let graphicsHTML = graphicsLayer ? graphicsLayer.outerHTML : '';
+
+            // تحكم بعلامة (مباشر) تلقائياً
+            if(isEmergency) {
+                if(liveBadge) liveBadge.style.opacity = '1';
+                offsetSeconds = 0; // في البث المباشر نبدأ من اللحظة الحالية (صفر)
+            } else {
+                if(liveBadge) liveBadge.style.opacity = '0';
+            }
 
             let youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|live|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
             let match = url.match(youtubeRegex);
@@ -120,10 +195,25 @@
             if (match && match[1]) {
                 let videoId = match[1];
                 if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
+                
+                // دمج (start) في الرابط لتشغيل الفيديو من الزمن الذي حسبه السيرفر
                 let iframeUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&enablejsapi=1&start=${offsetSeconds}`;
-                container.innerHTML = `<iframe src="${iframeUrl}" allow="autoplay; encrypted-media" allowfullscreen></iframe>${graphicsHTML}`;
+                
+                container.innerHTML = `
+                    <iframe src="${iframeUrl}" 
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                            allowfullscreen></iframe>
+                    ${graphicsHTML}
+                `;
             } else {
-                if (!document.getElementById('main-player')) container.innerHTML = `<video id="main-player" controls preload="auto" muted autoplay></video>${graphicsHTML}`;
+                // إذا كان الرابط m3u8 أو mp4
+                if (!document.getElementById('main-player')) {
+                    container.innerHTML = `
+                        <video id="main-player" controls preload="auto" poster="placeholder.jpg" muted autoplay></video>
+                        ${graphicsHTML}
+                    `;
+                }
+                
                 const video = document.getElementById('main-player');
                 
                 if (url.includes('.m3u8') && window.Hls && Hls.isSupported()) {
@@ -131,43 +221,72 @@
                     hlsInstance = new Hls();
                     hlsInstance.loadSource(url);
                     hlsInstance.attachMedia(video);
-                    hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => { video.currentTime = offsetSeconds; video.play().catch(e=>console.log(e)); });
+                    hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+                        video.currentTime = offsetSeconds; // التقديم للزمن الصحيح
+                        video.play().catch(e => console.log("التشغيل التلقائي يحتاج تفاعل"));
+                    });
                 } else if (video) {
                     video.src = url;
-                    video.addEventListener('loadedmetadata', () => { video.currentTime = offsetSeconds; video.play().catch(e=>console.log(e)); });
+                    video.addEventListener('loadedmetadata', () => {
+                        video.currentTime = offsetSeconds; // التقديم للزمن الصحيح
+                        video.play().catch(e => console.log(e));
+                    });
                 }
             }
         }
         
-        socket.on('update stream url', (data) => { if (data.url) loadStream(data.url, data.offset || 0); });
-
-        // حل مشكلة مؤشر اللايف جذرياً
-        socket.on('admin mode change', (data) => {
-            const graphicsLayer = document.getElementById('tvGraphics');
-            if (!graphicsLayer || !liveBadge) return;
-            
-            if (data.mode === 'live') {
-                graphicsLayer.classList.remove('hide-graphics');
-                liveBadge.style.opacity = '1'; // إظهار المؤشر
-            } else if (data.mode === 'recorded') {
-                graphicsLayer.classList.remove('hide-graphics');
-                liveBadge.style.opacity = '0'; // إخفاء المؤشر في البرامج المسجلة
-            } else if (data.mode === 'ad') {
-                graphicsLayer.classList.add('hide-graphics');
-                liveBadge.style.opacity = '0'; // إخفاء كل شيء في الإعلانات
+        // استقبال أمر تغيير الرابط أو التوقيت من السيرفر (المجدول الذكي)
+        socket.on('update stream url', (data) => { 
+            if (data.url) {
+                loadStream(data.url, data.offset || 0, data.isEmergency || false); 
             }
         });
 
-        socket.on('update top ticker text', (data) => { const el = document.getElementById('topTickerTextDisplay'); if (el && data.text) el.textContent = data.text; });
-        socket.on('update breaking', (data) => { const el = document.getElementById('breakingTextDisplay'); if (el && data.text) el.textContent = data.text; });
-        socket.on('update top ticker control', (data) => { const el = document.getElementById('tickerTopElement'); if (el) el.style.display = data.state === 'show' ? 'flex' : 'none'; });
-        socket.on('update news ticker', (data) => { const el = document.getElementById('newsTextDisplay'); if (el && data.text) el.textContent = data.text; });
-        socket.on('update logo control', (data) => {
-            const wrapper = document.getElementById('logoWrapper'); const img = document.getElementById('mainLogoImg');
-            if (data.action === 'visibility' && wrapper) wrapper.style.display = data.state === 'show' ? 'flex' : 'none';
-            else if (data.action === 'image' && img && data.url) img.src = data.url;
+        socket.on('admin mode change', (data) => {
+            const graphicsLayer = document.getElementById('tvGraphics');
+            if (!graphicsLayer) return;
+            if (data.mode === 'live') {
+                graphicsLayer.classList.remove('hide-graphics');
+                if(liveBadge) liveBadge.style.opacity = '1';
+            } else if (data.mode === 'recorded') {
+                graphicsLayer.classList.remove('hide-graphics');
+                if(liveBadge) liveBadge.style.opacity = '0'; 
+            } else if (data.mode === 'ad') {
+                graphicsLayer.classList.add('hide-graphics');
+            }
         });
 
+        socket.on('update top ticker text', (data) => {
+            const el = document.getElementById('topTickerTextDisplay');
+            if (el && data.text) el.textContent = data.text;
+        });
+
+        socket.on('update breaking', (data) => {
+            const el = document.getElementById('breakingTextDisplay');
+            if (el && data.text) el.textContent = data.text;
+        });
+
+        socket.on('update top ticker control', (data) => {
+            const el = document.getElementById('tickerTopElement');
+            if (el) el.style.display = data.state === 'show' ? 'flex' : 'none';
+        });
+
+        socket.on('update news ticker', (data) => {
+            const el = document.getElementById('newsTextDisplay');
+            if (el && data.text) el.textContent = data.text;
+        });
+
+        socket.on('update logo control', (data) => {
+            const wrapper = document.getElementById('logoWrapper');
+            const img = document.getElementById('mainLogoImg');
+            if (data.action === 'visibility' && wrapper) {
+                wrapper.style.display = data.state === 'show' ? 'flex' : 'none';
+            } else if (data.action === 'image' && img && data.url) {
+                img.src = data.url;
+            }
+        });
+
+        // --- نظام الدردشة المباشر والأرشيف ---
         const chatInput = document.getElementById('chatInput');
         const sendBtn = document.getElementById('sendBtn');
         const chatContainer = document.getElementById('chatMessagesContainer');
@@ -175,20 +294,34 @@
         function appendMessage(msgData) {
             const newMessage = document.createElement('div');
             newMessage.className = 'chat-message';
+            
             const userName = msgData.user || 'مشاهد';
             const userColor = msgData.color || '#10b981';
             const msgText = msgData.text || msgData.msg || '';
-            newMessage.innerHTML = `<div class="avatar" style="background:${userColor};">${userName.charAt(0)}</div><div class="msg-content"><span class="msg-user" style="color: ${userColor};">${userName}</span><span class="msg-text">${msgText}</span></div>`;
+
+            newMessage.innerHTML = `
+                <div class="avatar" style="background:${userColor};">${userName.charAt(0)}</div>
+                <div class="msg-content">
+                    <span class="msg-user" style="color: ${userColor};">${userName}</span>
+                    <span class="msg-text">${msgText}</span>
+                </div>
+            `;
             chatContainer.appendChild(newMessage);
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 
-        socket.on('chat history', (messages) => { messages.forEach(msg => appendMessage(msg)); });
-        socket.on('chat message', (msgData) => { appendMessage(msgData); });
+        socket.on('chat history', (messages) => {
+            messages.forEach(msg => appendMessage(msg));
+        });
+
+        socket.on('chat message', (msgData) => {
+            appendMessage(msgData);
+        });
 
         function sendMessage() {
-            if (chatInput.value.trim() === '') return;
-            socket.emit('chat message', { user: 'مشاهد', text: chatInput.value.trim(), color: '#10b981' });
+            const messageText = chatInput.value.trim();
+            if (messageText === '') return;
+            socket.emit('chat message', { user: 'مشاهد', text: messageText, color: '#10b981' });
             chatInput.value = ''; 
         }
 
