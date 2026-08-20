@@ -24,11 +24,11 @@ const Chat = mongoose.model('Chat', chatSchema);
 
 const server = http.createServer(app);
 const io = new Server(server, {
-    cors: { origin: "*", methods: ["GET", "POST"] }
+    cors: { origin: "*", methods: ["GET", "POST"] },
+    maxHttpBufferSize: 1e8 // للسماح بنقل بيانات الفيديو بدون تقطيع
 });
 
-// إعداد خادم البث المباشر RTMP
-// تم تغيير المنفذ هنا من 1935 إلى 8080 لتخطي حظر شبكات الإنترنت
+// إعداد خادم البث المباشر RTMP (لا يزال يعمل كاحتياطي)
 const nmsConfig = {
     rtmp: { port: 8080, chunk_size: 60000, gop_cache: true, ping: 30, ping_timeout: 60 },
     http: { port: 8000, allow_origin: '*' }
@@ -51,7 +51,7 @@ let appState = {
     streamUrl: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
     mode: 'live',
     topTickerVisibility: 'show',
-    topTickerText: 'عاجل | تحديثات جديدة في منظومة خورشمام', // حل مشكلة نص الشريط العلوي
+    topTickerText: 'عاجل | تحديثات جديدة في منظومة خورشمام',
     breakingText: 'مناقشة أهم التطورات الخدمية في المنطقة',
     newsText: 'حالة الطقس: استقرار درجات الحرارة خلال الأيام القادمة',
     logoVisibility: 'show',
@@ -71,13 +71,13 @@ io.on('connection', async (socket) => {
     socket.emit('update stream url', { url: appState.streamUrl });
     socket.emit('admin mode change', { mode: appState.mode });
     socket.emit('update top ticker control', { action: 'visibility', state: appState.topTickerVisibility });
-    socket.emit('update top ticker text', { text: appState.topTickerText }); // إرسال النص العلوي
+    socket.emit('update top ticker text', { text: appState.topTickerText });
     socket.emit('update breaking', { text: appState.breakingText });
     socket.emit('update news ticker', { text: appState.newsText });
     socket.emit('update logo control', { action: 'visibility', state: appState.logoVisibility });
     socket.emit('update logo control', { action: 'image', url: appState.logoUrl });
 
-    // إرسال أرشيف المحادثات السابقة للمشاهد الجديد (آخر 50 رسالة)
+    // إرسال أرشيف المحادثات السابقة للمشاهد الجديد
     try {
         const history = await Chat.find().sort({ time: -1 }).limit(50);
         socket.emit('chat history', history.reverse());
@@ -85,9 +85,14 @@ io.on('connection', async (socket) => {
         console.log("خطأ في جلب المحادثات السابقة");
     }
 
+    // --- 🚀 وسيط البث المباشر (WebRTC / WebSockets) ---
+    socket.on('broadcast stream', (data) => {
+        // استقبال بيانات الفيديو من لوحة الإدارة وإرسالها فوراً للمشاهدين
+        socket.broadcast.emit('receive stream', data);
+    });
+
     // 2. استقبال التعديلات من لوحة الإدارة
     socket.on('chat message', async (msg) => {
-        // حفظ الرسالة في قاعدة البيانات قبل إرسالها للجميع
         try { await new Chat({ msg }).save(); } catch(e) {}
         io.emit('chat message', msg);
     });
@@ -97,7 +102,6 @@ io.on('connection', async (socket) => {
         io.emit('admin mode change', data);
     });
 
-    // التحكم في نص الشريط العلوي
     socket.on('update top ticker text', (data) => {
         if (data.text) appState.topTickerText = data.text;
         io.emit('update top ticker text', data);
@@ -131,7 +135,6 @@ io.on('connection', async (socket) => {
 
     socket.on('disconnect', () => {
         console.log(`[-] غادر المستخدم: ${socket.id}`);
-        // تقليل عدد المشاهدين عند الخروج وإرسال التحديث للجميع
         liveViewers--;
         io.emit('viewers count', liveViewers);
     });
