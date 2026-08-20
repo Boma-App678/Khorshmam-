@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تلفزيون خورشمام | لوحة التحكم الإدارية</title>
+    <title>تلفزيون خورشمام | لوحة التحكم والمجدول الذكي</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
@@ -31,8 +31,13 @@
         .status-btn { flex: 1; padding: 12px; font-weight: bold; border-radius: 8px; cursor: pointer; border: none; color: white; }
         .btn-live { background: #10b981; } .btn-ad { background: #f59e0b; } .btn-rec { background: #6366f1; }
         
-        /* تأثيرات استوديو البث */
-        .live-studio { border: 2px solid #ef4444; animation: pulse 2s infinite; }
+        /* تصميم المجدول الذكي */
+        .scheduler-card { border: 2px solid #6366f1; }
+        .emergency-card { border: 2px solid #ef4444; background: rgba(239, 68, 68, 0.05); }
+        .btn-schedule { background: #6366f1; } .btn-schedule:hover { background: #4f46e5; }
+        .btn-emergency { background: #ef4444; animation: pulse 2s infinite; }
+        .btn-end-emergency { background: #10b981; }
+        
         @keyframes pulse {
             0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
             70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
@@ -45,7 +50,7 @@
     <!-- 🔒 شاشة تسجيل الدخول -->
     <div id="loginOverlay">
         <div class="login-card">
-            <h2>🛡️ تسجيل الدخول للإدارة</h2>
+            <h2>🛡️ إدارة خورشمام</h2>
             <input type="text" id="adminUser" placeholder="اسم المستخدم">
             <input type="password" id="adminPass" placeholder="كلمة المرور">
             <button onclick="login()">دخول الآن</button>
@@ -55,24 +60,47 @@
 
     <!-- 🛠️ لوحة التحكم -->
     <div class="container" id="adminContainer">
-        <h1>🛠️ لوحة التحكم الشاملة - تلفزيون خورشمام</h1>
+        <h1>🛠️ تلفزيون خورشمام - المجدول الذكي</h1>
         
         <div class="status-container">
             <div id="connStatus">🔴 جاري الاتصال...</div>
             <div id="viewersCount">👁️ المشاهدين الآن: <span id="vCount">0</span></div>
         </div>
 
-        <!-- 🚀 استوديو البث المباشر المدمج (جديد) -->
-        <div class="card live-studio">
-            <h2 style="color: #ef4444;">🎥 استوديو البث المباشر (تخطي الحظر)</h2>
-            <video id="localVideo" autoplay playsinline muted style="width:100%; height:200px; background:#000; border-radius:8px; object-fit: cover;"></video>
-            <canvas id="streamCanvas" style="display:none;"></canvas>
-            <button id="startStreamBtn" onclick="startWebRTCStream()" style="margin-top:10px; background: #ef4444;">بدء البث المباشر الآن</button>
-            <button id="stopStreamBtn" onclick="stopWebRTCStream()" style="margin-top:10px; background: #4b5563; display:none;">إيقاف البث</button>
-            <p id="streamStatus" style="color: #10b981; font-weight: bold; margin-top: 10px; display: none;">✅ البث يعمل الآن ويصل للمشاهدين...</p>
+        <!-- ⏰ 1. المجدول الذكي (البرنامج الأساسي) -->
+        <div class="card scheduler-card">
+            <h2 style="color: #6366f1;">📅 المجدول: بدء برنامج / إعلان جديد</h2>
+            <p style="color: #a1a1aa; font-size: 13px; margin-bottom: 10px;">عند تشغيل برنامج من هنا، سيبدأ العداد في حساب الوقت للعودة إليه لاحقاً.</p>
+            <div class="form-group">
+                <input type="text" id="scheduleInput" placeholder="أدخل رابط يوتيوب للبرنامج/الإعلان...">
+            </div>
+            <button class="btn-schedule" onclick="setScheduledProgram()">تشغيل البرنامج الآن</button>
         </div>
 
-        <!-- 1. التحكم في الشعار -->
+        <!-- 🚨 2. وضع الطوارئ (البث المباشر) -->
+        <div class="card emergency-card">
+            <h2 style="color: #ef4444;">🚨 غرفة الطوارئ: البث المباشر / العاجل</h2>
+            <p style="color: #a1a1aa; font-size: 13px; margin-bottom: 10px;">هذا الزر سيقطع البرنامج الحالي فوراً وينقل المشاهدين للحدث الطارئ.</p>
+            <div class="form-group">
+                <input type="text" id="emergencyInput" placeholder="أدخل رابط يوتيوب للحدث المباشر...">
+            </div>
+            <div class="status-box">
+                <button class="status-btn btn-emergency" onclick="startEmergency()">قطع وبدء البث الطارئ</button>
+                <button class="status-btn btn-end-emergency" onclick="endEmergency()">إنهاء الطوارئ (العودة للبرنامج)</button>
+            </div>
+        </div>
+
+        <!-- 3. وضع الشاشة -->
+        <div class="card">
+            <h2>وضع البث والعرض (اللوجو)</h2>
+            <div class="status-box">
+                <button class="status-btn btn-live" onclick="changeMode('live')">مباشر (Live)</button>
+                <button class="status-btn btn-ad" onclick="changeMode('ad')">إعلانات (Ad)</button>
+                <button class="status-btn btn-rec" onclick="changeMode('recorded')">مسجل (Recorded)</button>
+            </div>
+        </div>
+
+        <!-- 4. التحكم في الشعار -->
         <div class="card">
             <h2>التحكم في الشعار والرمز</h2>
             <div class="form-group">
@@ -88,60 +116,34 @@
             <button onclick="updateLogoImage()">تحديث صورة الشعار</button>
         </div>
 
-        <!-- 2. الشريط العلوي الإضافي -->
+        <!-- 5. الأشرطة الإخبارية -->
         <div class="card">
-            <h2>إدارة شريط (مقابلة خاصة) العلوي</h2>
+            <h2>إدارة الأشرطة الإخبارية</h2>
+            
             <div class="form-group">
-                <label>حالة الشريط العلوي:</label>
-                <select id="tickerTopVisibility" onchange="toggleTopTicker()">
+                <label>الشريط العلوي (مقابلة خاصة):</label>
+                <select id="tickerTopVisibility" onchange="toggleTopTicker()" style="margin-bottom: 5px;">
                     <option value="show">إظهار الشريط</option>
                     <option value="hide">إخفاء الشريط</option>
                 </select>
+                <input type="text" id="topTickerInput" placeholder="النص العلوي...">
+                <button onclick="updateTopTicker()" style="margin-bottom: 15px;">تحديث العلوي</button>
             </div>
+
             <div class="form-group">
-                <input type="text" id="topTickerInput" placeholder="اكتب النص هنا (مثال: عاجل | تحديثات...)">
+                <label style="color: #ef4444;">شريط عاجل الرئيسي (الأحمر):</label>
+                <input type="text" id="breakingInput" placeholder="نص الخبر العاجل...">
+                <button onclick="updateBreaking()" style="background: #ef4444; margin-bottom: 15px;">تحديث العاجل</button>
             </div>
-            <button onclick="updateTopTicker()">تحديث النص العلوي</button>
-        </div>
 
-        <!-- 3. شريط عاجل (الأحمر) -->
-        <div class="card" style="border-color: #ef4444;">
-            <h2>إدارة شريط (عاجل) الأحمر الرئيسي</h2>
             <div class="form-group">
-                <input type="text" id="breakingInput" placeholder="اكتب نص الخبر العاجل هنا...">
-            </div>
-            <button onclick="updateBreaking()" style="background: #ef4444;">تحديث الخبر العاجل الآن</button>
-        </div>
-
-        <!-- 4. شريط الأخبار السفلي (الأبيض) -->
-        <div class="card">
-            <h2>إدارة شريط (الأخبار) الأبيض السفلي</h2>
-            <div class="form-group">
-                <input type="text" id="newsInput" placeholder="اكتب نص أخبار الشريط السفلي...">
-            </div>
-            <button onclick="updateNewsTicker()">تحديث الأخبار الآن</button>
-        </div>
-
-        <!-- 5. وضع الشاشة -->
-        <div class="card">
-            <h2>وضع البث والعرض</h2>
-            <div class="status-box">
-                <button class="status-btn btn-live" onclick="changeMode('live')">مباشر (Live)</button>
-                <button class="status-btn btn-ad" onclick="changeMode('ad')">إعلانات (Ad)</button>
-                <button class="status-btn btn-rec" onclick="changeMode('recorded')">مسجل (Recorded)</button>
+                <label>شريط الأخبار السفلي (الأبيض):</label>
+                <input type="text" id="newsInput" placeholder="نص الأخبار...">
+                <button onclick="updateNewsTicker()">تحديث السفلي</button>
             </div>
         </div>
 
-        <!-- 6. رابط البث المباشر (الاحتياطي) -->
-        <div class="card">
-            <h2>تغيير رابط البث المباشر (HLS URL / YouTube)</h2>
-            <div class="form-group">
-                <input type="text" id="streamUrlInput" placeholder="أدخل رابط اليوتيوب أو .m3u8 الجديد...">
-            </div>
-            <button onclick="updateStreamUrl()">تغيير وعرض البث للمشاهدين</button>
-        </div>
-
-        <!-- 7. رسائل الإدارة في الشات -->
+        <!-- 6. رسائل الإدارة في الشات -->
         <div class="card">
             <h2>إرسال إعلان رسمي في المحادثة</h2>
             <div class="form-group">
@@ -149,9 +151,23 @@
             </div>
             <button onclick="sendAdminMessage()">إرسال الإعلان للشات</button>
         </div>
+
+        <!-- 7. الأمان (تغيير كلمة المرور) -->
+        <div class="card" style="border-color: #f59e0b;">
+            <h2 style="color: #f59e0b;">🔐 إعدادات الأمان</h2>
+            <div class="form-group">
+                <input type="text" id="newUsername" placeholder="اسم المستخدم الجديد (اختياري)">
+            </div>
+            <div class="form-group">
+                <input type="password" id="newPassword" placeholder="كلمة المرور الجديدة (اختياري)">
+            </div>
+            <button onclick="changeCredentials()" style="background: #f59e0b;">تحديث بيانات الدخول</button>
+        </div>
     </div>
 
     <script>
+        let adminToken = '';
+
         // --- نظام تسجيل الدخول الآمن ---
         async function login() {
             const u = document.getElementById('adminUser').value;
@@ -164,6 +180,7 @@
                 });
                 const data = await response.json();
                 if(data.success) {
+                    adminToken = data.token; // حفظ التوكن لتغيير الباسورد لاحقاً
                     document.getElementById('loginOverlay').style.display = 'none';
                     document.getElementById('adminContainer').style.display = 'block';
                 } else {
@@ -171,6 +188,32 @@
                 }
             } catch(e) {
                 alert('خطأ في الاتصال بالسيرفر! تأكد أن السيرفر يعمل.');
+            }
+        }
+
+        // --- تغيير بيانات الدخول ---
+        async function changeCredentials() {
+            const newU = document.getElementById('newUsername').value;
+            const newP = document.getElementById('newPassword').value;
+            
+            if(!newU && !newP) return alert('يرجى إدخال بيانات جديدة أولاً');
+
+            try {
+                const response = await fetch('/api/change-credentials', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ newUsername: newU, newPassword: newP, token: adminToken })
+                });
+                const data = await response.json();
+                if(data.success) {
+                    alert('✅ تم تحديث بيانات الدخول بنجاح! سيتم تطبيقها فوراً.');
+                    document.getElementById('newUsername').value = '';
+                    document.getElementById('newPassword').value = '';
+                } else {
+                    alert('حدث خطأ غير مصرح به.');
+                }
+            } catch(e) {
+                alert('خطأ في الاتصال بالسيرفر.');
             }
         }
 
@@ -193,55 +236,29 @@
             document.getElementById('vCount').innerText = count;
         });
 
-        // --- 🚀 نظام البث المباشر من المتصفح (استوديو البث) ---
-        let localStream;
-        let streamInterval;
-        const videoEl = document.getElementById('localVideo');
-        const canvas = document.getElementById('streamCanvas');
-        const ctx = canvas.getContext('2d');
-
-        async function startWebRTCStream() {
-            try {
-                // طلب صلاحية الكاميرا والمايكروفون
-                localStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: true });
-                videoEl.srcObject = localStream;
-                
-                document.getElementById('startStreamBtn').style.display = 'none';
-                document.getElementById('stopStreamBtn').style.display = 'block';
-                document.getElementById('streamStatus').style.display = 'block';
-
-                // إعداد جودة الإرسال
-                canvas.width = 640;
-                canvas.height = 480;
-
-                // التقاط إطارات الفيديو وإرسالها للسيرفر كل 100 ملي ثانية (10 إطارات في الثانية لضمان عدم التقطيع)
-                streamInterval = setInterval(() => {
-                    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-                    const frameData = canvas.toDataURL('image/jpeg', 0.5); // ضغط الصورة لسرعة النقل
-                    socket.emit('broadcast stream', frameData);
-                }, 100);
-
-                // إرسال أمر لتفعيل وضع العرض المباشر (الكاميرا) عند المشاهدين
-                socket.emit('admin mode change', { mode: 'browser-live' });
-
-            } catch (err) {
-                alert("❌ حدث خطأ: لا يمكن الوصول للكاميرا. تأكد من إعطاء الصلاحيات في المتصفح.");
-                console.error(err);
+        // --- ⏰ أوامر المجدول الذكي ---
+        function setScheduledProgram() {
+            const url = document.getElementById('scheduleInput').value;
+            if(url) {
+                socket.emit('set scheduled program', { url });
+                alert('✅ تم تشغيل البرنامج. العداد يعمل الآن لحفظ الوقت.');
             }
         }
 
-        function stopWebRTCStream() {
-            if(localStream) {
-                localStream.getTracks().forEach(track => track.stop());
+        function startEmergency() {
+            const url = document.getElementById('emergencyInput').value;
+            if(url) {
+                socket.emit('set emergency stream', { url });
+                alert('🚨 تم قطع البرنامج والانتقال للبث الطارئ فوراً!');
             }
-            clearInterval(streamInterval);
-            document.getElementById('startStreamBtn').style.display = 'block';
-            document.getElementById('stopStreamBtn').style.display = 'none';
-            document.getElementById('streamStatus').style.display = 'none';
-            socket.emit('admin mode change', { mode: 'live' }); // العودة للوضع العادي
         }
 
-        // --- وظائف التحكم في القناة ---
+        function endEmergency() {
+            socket.emit('end emergency');
+            alert('✅ تم إنهاء الطوارئ. المشاهدون سيعودون للبرنامج الأصلي في الدقيقة الصحيحة.');
+        }
+
+        // --- باقي وظائف التحكم ---
         function toggleLogo() {
             const state = document.getElementById('logoVisibility').value;
             socket.emit('update logo control', { action: 'visibility', state: state });
@@ -249,10 +266,7 @@
 
         function updateLogoImage() {
             const url = document.getElementById('logoUrlInput').value;
-            if(url) {
-                socket.emit('update logo control', { action: 'image', url: url });
-                alert('تم تحديث الشعار بنجاح');
-            }
+            if(url) socket.emit('update logo control', { action: 'image', url: url });
         }
 
         function toggleTopTicker() {
@@ -262,46 +276,27 @@
 
         function updateTopTicker() {
             const text = document.getElementById('topTickerInput').value;
-            if(text) {
-                socket.emit('update top ticker text', { text: text });
-                alert('تم تحديث النص العلوي بنجاح');
-            }
+            if(text) socket.emit('update top ticker text', { text: text });
         }
 
         function updateBreaking() {
             const text = document.getElementById('breakingInput').value;
-            if(text) {
-                socket.emit('update breaking', { text: text });
-                alert('تم تحديث الخبر العاجل بنجاح');
-            }
+            if(text) socket.emit('update breaking', { text: text });
         }
 
         function updateNewsTicker() {
             const news = document.getElementById('newsInput').value;
-            if(news) {
-                socket.emit('update news ticker', { text: news });
-                alert('تم تحديث الأخبار بنجاح');
-            }
+            if(news) socket.emit('update news ticker', { text: news });
         }
 
         function changeMode(mode) { 
             socket.emit('admin mode change', { mode }); 
-            alert('تم تغيير وضع الشاشة إلى: ' + mode);
-        }
-
-        function updateStreamUrl() {
-            const url = document.getElementById('streamUrlInput').value;
-            if(url) {
-                socket.emit('update stream url', { url });
-                alert('تم تغيير رابط البث بنجاح');
-            }
         }
 
         function sendAdminMessage() {
             const text = document.getElementById('adminMsgInput').value;
             if(text) {
                 socket.emit('chat message', { user: 'إدارة القناة 🛡️', text, color: '#ff3333' });
-                alert('تم إرسال إعلان الإدارة للشات بنجاح');
                 document.getElementById('adminMsgInput').value = '';
             }
         }
