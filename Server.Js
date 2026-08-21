@@ -69,7 +69,9 @@ let appState = {
     mode: 'live',
     topTickerVisibility: 'show',
     topTickerText: 'عاجل | تحديثات جديدة في منظومة خورشمام',
+    breakingVisibility: 'show', // حالة ظهور شريط العاجل
     breakingText: 'مناقشة أهم التطورات الخدمية في المنطقة',
+    newsVisibility: 'show', // حالة ظهور شريط الأخبار
     newsText: 'حالة الطقس: استقرار درجات الحرارة خلال الأيام القادمة',
     logoVisibility: 'show',
     logoUrl: 'https://i.postimg.cc/5txxv6Xv/1000865860-removebg-preview.png',
@@ -127,8 +129,13 @@ io.on('connection', async (socket) => {
     socket.emit('admin mode change', { mode: appState.mode });
     socket.emit('update top ticker control', { action: 'visibility', state: appState.topTickerVisibility });
     socket.emit('update top ticker text', { text: appState.topTickerText });
+    
+    // إرسال حالة نصوص الأشرطة للمشاهد الجديد
+    socket.emit('update breaking control', { state: appState.breakingVisibility });
     socket.emit('update breaking', { text: appState.breakingText });
+    socket.emit('update news ticker control', { state: appState.newsVisibility });
     socket.emit('update news ticker', { text: appState.newsText });
+    
     socket.emit('update logo control', { action: 'visibility', state: appState.logoVisibility });
     socket.emit('update logo control', { action: 'image', url: appState.logoUrl });
     socket.emit('playlist updated', appState.playlist);
@@ -236,8 +243,13 @@ io.on('connection', async (socket) => {
     socket.on('admin mode change', (data) => { appState.mode = data.mode; io.emit('admin mode change', data); });
     socket.on('update top ticker text', (data) => { appState.topTickerText = data.text; io.emit('update top ticker text', data); });
     socket.on('update top ticker control', (data) => { appState.topTickerVisibility = data.state; io.emit('update top ticker control', data); });
+    
+    // تحكم الشريط العاجل والأخبار
+    socket.on('update breaking control', (data) => { appState.breakingVisibility = data.state; io.emit('update breaking control', data); });
     socket.on('update breaking', (data) => { appState.breakingText = data.text; io.emit('update breaking', data); });
+    socket.on('update news ticker control', (data) => { appState.newsVisibility = data.state; io.emit('update news ticker control', data); });
     socket.on('update news ticker', (data) => { appState.newsText = data.text; io.emit('update news ticker', data); });
+    
     socket.on('update logo control', (data) => {
         if (data.action === 'visibility') appState.logoVisibility = data.state;
         if (data.action === 'image' && data.url) appState.logoUrl = data.url;
