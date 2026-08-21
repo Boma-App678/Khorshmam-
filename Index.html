@@ -132,11 +132,11 @@
                             <span class="ticker-top-tag">مقابلة خاصة |</span> 
                             <span id="topTickerTextDisplay">عاجل | تحديثات جديدة في منظومة خورشمام</span>
                         </div>
-                        <div class="ticker-middle">
+                        <div id="breakingTickerElement" class="ticker-middle">
                             <div class="ticker-label">عاجل</div>
                             <div class="ticker-wrap"><div class="ticker-move"><span id="breakingTextDisplay" class="ticker-item">مناقشة أهم التطورات الخدمية في المنطقة</span></div></div>
                         </div>
-                        <div class="ticker-bottom">
+                        <div id="newsTickerElement" class="ticker-bottom">
                             <div class="ticker-label">أخبار</div>
                             <div class="ticker-wrap"><div class="ticker-move" style="animation-duration: 35s;"><span id="newsTextDisplay" class="ticker-item">حالة الطقس: استقرار درجات الحرارة خلال الأيام القادمة</span></div></div>
                         </div>
@@ -277,9 +277,19 @@
             }
         });
 
+        socket.on('update top ticker control', (data) => {
+            const el = document.getElementById('tickerTopElement');
+            if (el) el.style.display = data.state === 'show' ? 'flex' : 'none';
+        });
+
         socket.on('update top ticker text', (data) => {
             const el = document.getElementById('topTickerTextDisplay');
             if (el && data.text) el.textContent = data.text;
+        });
+
+        socket.on('update breaking control', (data) => {
+            const el = document.getElementById('breakingTickerElement');
+            if (el) el.style.display = data.state === 'show' ? 'flex' : 'none';
         });
 
         socket.on('update breaking', (data) => {
@@ -287,8 +297,8 @@
             if (el && data.text) el.textContent = data.text;
         });
 
-        socket.on('update top ticker control', (data) => {
-            const el = document.getElementById('tickerTopElement');
+        socket.on('update news ticker control', (data) => {
+            const el = document.getElementById('newsTickerElement');
             if (el) el.style.display = data.state === 'show' ? 'flex' : 'none';
         });
 
