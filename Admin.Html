@@ -444,12 +444,16 @@
         // ==========================================
 
         // --- نظام قائمة التشغيل الآلية ---
+        // 🔴 التعديل هنا: إضافة زر الحذف بجوار كل فيديو
         socket.on('playlist updated', (list) => {
             const ul = document.getElementById('playlistView');
             ul.innerHTML = '';
             if(list.length === 0) { ul.innerHTML = '<li>لا يوجد فيديوهات في القائمة حالياً...</li>'; return; }
             list.forEach((item, index) => {
-                ul.innerHTML += `<li>${index + 1}. المدة: ${item.duration}ث | الرابط: <span style="color:#60a5fa">${item.url.substring(0,35)}...</span></li>`;
+                ul.innerHTML += `<li style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>${index + 1}. المدة: ${item.duration}ث | الرابط: <span style="color:#60a5fa">${item.url.substring(0,35)}...</span></span>
+                    <button onclick="removeFromPlaylist(${index})" style="background: #ef4444; padding: 2px 8px; width: auto; font-size: 12px; margin: 0; border-radius: 4px;">حذف ❌</button>
+                </li>`;
             });
         });
 
@@ -461,6 +465,13 @@
                 document.getElementById('plUrl').value = '';
                 document.getElementById('plDuration').value = '';
             } else { alert('يرجى إدخال الرابط والمدة بالثواني!'); }
+        }
+
+        // 🔴 دالة حذف رابط واحد
+        function removeFromPlaylist(index) {
+            if(confirm('هل أنت متأكد من حذف هذا الفيديو من القائمة؟')) {
+                socket.emit('remove from playlist', index);
+            }
         }
 
         function clearPlaylist() {
