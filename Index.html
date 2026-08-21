@@ -10,7 +10,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-    <!-- تمت إضافة مكتبة flv.js هنا لتشغيل البث المباشر الخاص بك -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/flv.js/1.6.2/flv.min.js"></script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
@@ -113,7 +112,9 @@
     <main class="main-layout">
         <div class="video-column">
             <div class="tv-screen-container" id="playerContainer">
-                <video id="main-player" controls preload="auto" poster="placeholder.jpg" muted autoplay></video>
+                <!-- 🔴 تعديل مهم: عنصر الفيديو الأساسي موجود وجاهز مسبقاً لمنع رمشة الشاشة -->
+                <video id="main-player" style="display:none;" controls preload="auto" poster="placeholder.jpg"></video>
+                <iframe id="main-iframe" style="display:none;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
                 <div id="tvGraphics" class="tv-graphics-layer">
                     <div class="tv-top-bar">
@@ -177,17 +178,17 @@
         socket.on('disconnect', () => { statusIcon.textContent = '🔴'; });
 
         let hlsInstance = null;
-        let flvPlayer = null; // تمت الإضافة للتحكم في مشغل البث المباشر
+        let flvPlayer = null;
+        // 🔴 متغير ذكي لتحديد ما إذا كان هذا أول فيديو (لكتم الصوت) أم لا (للسماح بالصوت)
+        let isFirstPlay = true; 
 
         function loadStream(url, offsetSeconds = 0, isEmergency = false) {
-            const container = document.getElementById('playerContainer');
-            let graphicsLayer = document.getElementById('tvGraphics');
-            let graphicsHTML = graphicsLayer ? graphicsLayer.outerHTML : '';
+            const videoEl = document.getElementById('main-player');
+            const iframeEl = document.getElementById('main-iframe');
 
-            // تحكم بعلامة (مباشر) تلقائياً
             if(isEmergency) {
                 if(liveBadge) liveBadge.style.opacity = '1';
-                offsetSeconds = 0; // في البث المباشر نبدأ من اللحظة الحالية (صفر)
+                offsetSeconds = 0;
             } else {
                 if(liveBadge) liveBadge.style.opacity = '0';
             }
@@ -196,71 +197,59 @@
             let match = url.match(youtubeRegex);
 
             if (match && match[1]) {
-                let videoId = match[1];
-                
-                // تنظيف المشغلات السابقة لضمان عدم حدوث تعارض
+                // التعامل مع اليوتيوب
+                videoEl.style.display = 'none';
                 if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
                 if (flvPlayer) { flvPlayer.destroy(); flvPlayer = null; }
                 
-                // دمج (start) في الرابط لتشغيل الفيديو من الزمن الذي حسبه السيرفر
-                let iframeUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&enablejsapi=1&start=${offsetSeconds}`;
+                let videoId = match[1];
+                let muteParam = isFirstPlay ? "&mute=1" : "&mute=0"; // 🔴 السماح بالصوت إذا لم يكن الأول
+                let iframeUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1${muteParam}&enablejsapi=1&start=${offsetSeconds}`;
                 
-                container.innerHTML = `
-                    <iframe src="${iframeUrl}" 
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                            allowfullscreen></iframe>
-                    ${graphicsHTML}
-                `;
+                // 🔴 استبدال الرابط بلطف لمنع الرمشة
+                iframeEl.src = iframeUrl;
+                iframeEl.style.display = 'block';
+                isFirstPlay = false; 
+
             } else {
-                // إذا كان الرابط m3u8 أو mp4 أو flv
-                if (!document.getElementById('main-player')) {
-                    container.innerHTML = `
-                        <video id="main-player" controls preload="auto" poster="placeholder.jpg" muted autoplay></video>
-                        ${graphicsHTML}
-                    `;
-                }
+                // التعامل مع الفيديوهات المباشرة (mp4, m3u8, flv)
+                iframeEl.style.display = 'none';
+                iframeEl.src = ''; 
+                videoEl.style.display = 'block';
                 
-                const video = document.getElementById('main-player');
-                
-                // تنظيف المشغلات السابقة
+                videoEl.muted = isFirstPlay; // 🔴 كتم الصوت فقط في أول فيديو
+
                 if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
                 if (flvPlayer) { flvPlayer.destroy(); flvPlayer = null; }
                 
                 if (url.includes('.m3u8') && window.Hls && Hls.isSupported()) {
                     hlsInstance = new Hls();
                     hlsInstance.loadSource(url);
-                    hlsInstance.attachMedia(video);
+                    hlsInstance.attachMedia(videoEl);
                     hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-                        video.currentTime = offsetSeconds; // التقديم للزمن الصحيح
-                        video.play().catch(e => console.log("التشغيل التلقائي يحتاج تفاعل"));
+                        videoEl.currentTime = offsetSeconds;
+                        videoEl.play().catch(e => console.log("التشغيل التلقائي يحتاج تفاعل"));
                     });
                 } 
-                // تشغيل صيغة FLV الخاصة بالبث المباشر للسيرفر
                 else if (url.includes('.flv') && window.flvjs && flvjs.isSupported()) {
-                    flvPlayer = flvjs.createPlayer({
-                        type: 'flv',
-                        url: url,
-                        isLive: isEmergency // تحسين الأداء للبث المباشر
-                    });
-                    flvPlayer.attachMediaElement(video);
+                    flvPlayer = flvjs.createPlayer({ type: 'flv', url: url, isLive: isEmergency });
+                    flvPlayer.attachMediaElement(videoEl);
                     flvPlayer.load();
                     flvPlayer.play().catch(e => console.log("التشغيل التلقائي يحتاج تفاعل"));
                 }
-                else if (video) {
-                    video.src = url;
-                    video.addEventListener('loadedmetadata', () => {
-                        video.currentTime = offsetSeconds; // التقديم للزمن الصحيح
-                        video.play().catch(e => console.log(e));
+                else {
+                    videoEl.src = url;
+                    videoEl.addEventListener('loadedmetadata', () => {
+                        videoEl.currentTime = offsetSeconds;
+                        videoEl.play().catch(e => console.log("تحذير المتصفح للتشغيل التلقائي"));
                     }, { once: true });
                 }
+                isFirstPlay = false;
             }
         }
         
-        // استقبال أمر تغيير الرابط أو التوقيت من السيرفر (المجدول الذكي)
         socket.on('update stream url', (data) => { 
-            if (data.url) {
-                loadStream(data.url, data.offset || 0, data.isEmergency || false); 
-            }
+            if (data.url) { loadStream(data.url, data.offset || 0, data.isEmergency || false); }
         });
 
         socket.on('admin mode change', (data) => {
@@ -317,7 +306,6 @@
             }
         });
 
-        // --- نظام الدردشة المباشر والأرشيف ---
         const chatInput = document.getElementById('chatInput');
         const sendBtn = document.getElementById('sendBtn');
         const chatContainer = document.getElementById('chatMessagesContainer');
@@ -341,13 +329,8 @@
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 
-        socket.on('chat history', (messages) => {
-            messages.forEach(msg => appendMessage(msg));
-        });
-
-        socket.on('chat message', (msgData) => {
-            appendMessage(msgData);
-        });
+        socket.on('chat history', (messages) => { messages.forEach(msg => appendMessage(msg)); });
+        socket.on('chat message', (msgData) => { appendMessage(msgData); });
 
         function sendMessage() {
             const messageText = chatInput.value.trim();
