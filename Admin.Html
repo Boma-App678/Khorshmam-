@@ -104,6 +104,34 @@
             </div>
         </div>
 
+        <!-- 🎙️ استوديو الضيوف الجديد (WebRTC) -->
+        <div class="card" style="border-color: #10b981;">
+            <h2 style="color: #10b981;">🎙️ استوديو الضيوف التفاعلي (مباشر)</h2>
+            <p style="color: #a1a1aa; font-size: 13px; margin-bottom: 10px;">استقبل حتى 4 ضيوف في وقت واحد من خلال رابط الاستوديو.</p>
+            
+            <!-- كاميرا الإدارة -->
+            <div style="margin-bottom: 15px;">
+                <button onclick="startAdminCamera()" style="background: #10b981; margin-bottom: 10px; font-size: 14px;">🎥 تشغيل كاميرا الإدارة (ضروري لقبول الضيوف)</button>
+                <video id="adminLocalVideo" autoplay muted playsinline style="width: 100%; max-height: 250px; background: #000; border-radius: 8px; border: 1px solid #333; display: none; object-fit: cover;"></video>
+            </div>
+
+            <!-- قائمة الانتظار -->
+            <div style="background: #0f0f13; padding: 10px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #333;">
+                <h3 style="font-size: 15px; color: #f59e0b; margin-bottom: 10px;">⏳ ضيوف في قائمة الانتظار</h3>
+                <ul id="waitingGuestsList" style="list-style: none; font-size: 13px; margin: 0; padding: 0;">
+                    <li style="color: #a1a1aa;">لا يوجد ضيوف في الانتظار...</li>
+                </ul>
+            </div>
+
+            <!-- الضيوف النشطين -->
+            <div style="background: #0f0f13; padding: 10px; border-radius: 8px; border: 1px solid #333;">
+                <h3 style="font-size: 15px; color: #3b82f6; margin-bottom: 10px;">📺 الضيوف على الهواء</h3>
+                <div id="activeGuestsGrid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <!-- سيتم إضافة فيديوهات الضيوف هنا تلقائياً -->
+                </div>
+            </div>
+        </div>
+
         <!-- 3. وضع الشاشة -->
         <div class="card">
             <h2>وضع البث والعرض (اللوجو)</h2>
@@ -194,7 +222,7 @@
                 });
                 const data = await response.json();
                 if(data.success) {
-                    adminToken = data.token; // حفظ التوكن لتغيير الباسورد لاحقاً
+                    adminToken = data.token; 
                     document.getElementById('loginOverlay').style.display = 'none';
                     document.getElementById('adminContainer').style.display = 'block';
                 } else {
@@ -249,6 +277,163 @@
         socket.on('viewers count', (count) => {
             document.getElementById('vCount').innerText = count;
         });
+
+        // ==========================================
+        // 🎙️ نظام استوديو الضيوف (WebRTC) - الجديد
+        // ==========================================
+        let adminLocalStream = null;
+        let peerConnections = {}; 
+        const iceServers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+        const waitingGuestsList = document.getElementById('waitingGuestsList');
+        const activeGuestsGrid = document.getElementById('activeGuestsGrid');
+        let waitingGuests = {};
+
+        async function startAdminCamera() {
+            try {
+                adminLocalStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                const adminVid = document.getElementById('adminLocalVideo');
+                adminVid.srcObject = adminLocalStream;
+                adminVid.style.display = 'block';
+                alert('✅ تم تشغيل الكاميرا بنجاح. يمكنك الآن قبول الضيوف في الاستوديو.');
+            } catch (err) {
+                alert('❌ تعذر تشغيل الكاميرا: ' + err.message);
+            }
+        }
+
+        // 1. استقبال طلبات الانتظار من الضيوف
+        socket.on('guest waiting', (data) => {
+            waitingGuests[data.id] = data;
+            updateWaitingListUI();
+            // تشغيل صوت تنبيه خفيف (اختياري)
+            console.log("يوجد ضيف جديد في الانتظار!");
+        });
+
+        // 2. معالجة انقطاع اتصال الضيف
+        socket.on('guest disconnected', (guestId) => {
+            if(waitingGuests[guestId]) {
+                delete waitingGuests[guestId];
+                updateWaitingListUI();
+            }
+            if(peerConnections[guestId]) {
+                peerConnections[guestId].close();
+                delete peerConnections[guestId];
+                const vidEl = document.getElementById(`guest-vid-${guestId}`);
+                if(vidEl) vidEl.remove();
+            }
+        });
+
+        // 3. تحديث واجهة قائمة الانتظار
+        function updateWaitingListUI() {
+            waitingGuestsList.innerHTML = '';
+            const keys = Object.keys(waitingGuests);
+            if(keys.length === 0) {
+                waitingGuestsList.innerHTML = '<li style="color: #a1a1aa;">لا يوجد ضيوف في الانتظار...</li>';
+                return;
+            }
+            keys.forEach(id => {
+                const g = waitingGuests[id];
+                const li = document.createElement('li');
+                li.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #333; background: #1a1a24; border-radius: 5px; margin-bottom: 5px;';
+                li.innerHTML = `
+                    <span>👤 <strong>${g.name}</strong> <br><small style="color: #60a5fa;">${g.location}</small></span>
+                    <button onclick="acceptGuest('${id}')" style="background: #10b981; padding: 8px 12px; width: auto; font-size: 13px; margin: 0;">قبول وإدخال</button>
+                `;
+                waitingGuestsList.appendChild(li);
+            });
+        }
+
+        // 4. قبول الضيف وإنشاء الاتصال
+        async function acceptGuest(guestId) {
+            if (!adminLocalStream) {
+                alert('يرجى تشغيل كاميرا الإدارة أولاً قبل قبول الضيوف!');
+                return;
+            }
+            socket.emit('admin accept guest', guestId);
+            delete waitingGuests[guestId];
+            updateWaitingListUI();
+            
+            createPeerConnection(guestId);
+        }
+
+        // 5. إنشاء وتجهيز قناة الاتصال المباشرة (P2P)
+        function createPeerConnection(guestId) {
+            const pc = new RTCPeerConnection(iceServers);
+            peerConnections[guestId] = pc;
+
+            adminLocalStream.getTracks().forEach(track => pc.addTrack(track, adminLocalStream));
+
+            pc.ontrack = (event) => {
+                let vidContainer = document.getElementById(`guest-vid-${guestId}`);
+                if (!vidContainer) {
+                    vidContainer = document.createElement('div');
+                    vidContainer.id = `guest-vid-${guestId}`;
+                    vidContainer.style.cssText = 'position: relative; background: #000; border-radius: 8px; overflow: hidden; border: 2px solid #3b82f6; aspect-ratio: 16/9;';
+                    
+                    const video = document.createElement('video');
+                    video.autoplay = true;
+                    video.playsInline = true;
+                    video.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
+                    video.srcObject = event.streams[0];
+                    
+                    const kickBtn = document.createElement('button');
+                    kickBtn.innerText = 'طرد ❌';
+                    kickBtn.style.cssText = 'position: absolute; top: 5px; right: 5px; background: rgba(239, 68, 68, 0.9); color: white; border: none; padding: 5px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; width: auto; margin: 0;';
+                    kickBtn.onclick = () => kickGuest(guestId);
+                    
+                    vidContainer.appendChild(video);
+                    vidContainer.appendChild(kickBtn);
+                    activeGuestsGrid.appendChild(vidContainer);
+                }
+            };
+
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit('webrtc_ice_candidate', { target: guestId, candidate: event.candidate });
+                }
+            };
+        }
+
+        // 6. طرد الضيف
+        function kickGuest(guestId) {
+            if(confirm('هل أنت متأكد من طرد هذا الضيف من الهواء؟')) {
+                socket.emit('kick guest', guestId);
+                if(peerConnections[guestId]) {
+                    peerConnections[guestId].close();
+                    delete peerConnections[guestId];
+                }
+                const vidEl = document.getElementById(`guest-vid-${guestId}`);
+                if(vidEl) vidEl.remove();
+            }
+        }
+
+        // 7. التعامل مع الإشارات القادمة من الضيوف
+        socket.on('webrtc_offer', async (data) => {
+            const guestId = data.sender;
+            if (!peerConnections[guestId]) createPeerConnection(guestId);
+            const pc = peerConnections[guestId];
+            
+            await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            
+            socket.emit('webrtc_answer', { target: guestId, sdp: answer });
+        });
+
+        socket.on('webrtc_answer', async (data) => {
+            const pc = peerConnections[data.sender];
+            if (pc) await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        });
+
+        socket.on('webrtc_ice_candidate', async (data) => {
+            const pc = peerConnections[data.sender];
+            if (pc && data.candidate) {
+                try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch (e) {}
+            }
+        });
+
+        // ==========================================
+        // نهاية نظام الاستوديو
+        // ==========================================
 
         // --- نظام قائمة التشغيل الآلية ---
         socket.on('playlist updated', (list) => {
