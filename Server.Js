@@ -151,6 +151,18 @@ io.on('connection', async (socket) => {
         io.emit('playlist updated', appState.playlist);
     });
 
+    // 🔴 تمت إضافة أمر حذف رابط واحد محدد من القائمة
+    socket.on('remove from playlist', (index) => {
+        if (index >= 0 && index < appState.playlist.length) {
+            appState.playlist.splice(index, 1);
+            // ضبط المؤشر في حال تم حذف فيديو يسبق الفيديو الذي يعمل حالياً
+            if (index < appState.currentIndex) {
+                appState.currentIndex--;
+            }
+            io.emit('playlist updated', appState.playlist);
+        }
+    });
+
     socket.on('clear playlist', () => {
         appState.playlist = [];
         clearTimeout(appState.timer);
