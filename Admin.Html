@@ -174,12 +174,20 @@
 
             <div class="form-group">
                 <label style="color: #ef4444;">شريط عاجل الرئيسي (الأحمر):</label>
+                <select id="breakingVisibility" onchange="toggleBreaking()" style="margin-bottom: 5px;">
+                    <option value="show">إظهار الشريط</option>
+                    <option value="hide">إخفاء الشريط</option>
+                </select>
                 <input type="text" id="breakingInput" placeholder="نص الخبر العاجل...">
                 <button onclick="updateBreaking()" style="background: #ef4444; margin-bottom: 15px;">تحديث العاجل</button>
             </div>
 
             <div class="form-group">
                 <label>شريط الأخبار السفلي (الأبيض):</label>
+                <select id="newsVisibility" onchange="toggleNewsTicker()" style="margin-bottom: 5px;">
+                    <option value="show">إظهار الشريط</option>
+                    <option value="hide">إخفاء الشريط</option>
+                </select>
                 <input type="text" id="newsInput" placeholder="نص الأخبار...">
                 <button onclick="updateNewsTicker()">تحديث السفلي</button>
             </div>
@@ -499,9 +507,19 @@
             if(text) socket.emit('update top ticker text', { text: text });
         }
 
+        function toggleBreaking() {
+            const state = document.getElementById('breakingVisibility').value;
+            socket.emit('update breaking control', { state: state });
+        }
+
         function updateBreaking() {
             const text = document.getElementById('breakingInput').value;
             if(text) socket.emit('update breaking', { text: text });
+        }
+
+        function toggleNewsTicker() {
+            const state = document.getElementById('newsVisibility').value;
+            socket.emit('update news ticker control', { state: state });
         }
 
         function updateNewsTicker() {
