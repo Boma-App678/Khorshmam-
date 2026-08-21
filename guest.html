@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>استوديو الضيوف | تلفزيون خورشمام</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Cairo', sans-serif; }
+        body { background-color: #0f0f13; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        
+        .guest-container { background: #1a1a24; padding: 30px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); width: 100%; max-width: 650px; border: 1px solid #333; border-top: 4px solid #ef4444; }
+        h2 { text-align: center; color: #ef4444; margin-bottom: 20px; }
+        
+        /* شاشة الكاميرا التي سيتم الرسم عليها */
+        .preview-wrapper { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 10px; margin-bottom: 20px; overflow: hidden; border: 2px solid #333; position: relative; }
+        #canvasPreview { width: 100%; height: 100%; object-fit: cover; }
+        #statusMsg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-weight: bold; background: rgba(0,0,0,0.7); padding: 10px 20px; border-radius: 8px; }
+
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #a1a1aa; font-size: 14px; }
+        input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #0f0f13; color: white; outline: none; font-size: 15px; }
+        input:focus { border-color: #ef4444; }
+        
+        button { background: #ef4444; color: white; border: none; width: 100%; padding: 15px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s; margin-top: 10px; }
+        button:hover { background: #dc2626; }
+        button:disabled { background: #444; cursor: not-allowed; color: #888; }
+    </style>
+</head>
+<body>
+
+    <div class="guest-container">
+        <h2>🎙️ استوديو خورشمام التفاعلي</h2>
+        
+        <div class="preview-wrapper">
+            <!-- الكانفاس الذي سيرسم الكاميرا مع اسم الضيف -->
+            <canvas id="canvasPreview"></canvas>
+            <div id="statusMsg">جاري تجهيز الكاميرا... 🎥</div>
+        </div>
+
+        <div class="form-group">
+            <label>الاسم الكريم (كما سيظهر على الهواء):</label>
+            <input type="text" id="guestName" placeholder="مثال: د. أحمد مطر">
+        </div>
+
+        <div class="form-group">
+            <label>المنصب أو المكان:</label>
+            <input type="text" id="guestLocation" placeholder="مثال: خبير تقني - السعودية">
+        </div>
+
+        <button id="joinBtn" disabled>دخول الاستوديو 🚀</button>
+    </div>
+
+    <script>
+        const socket = io();
+        const rawVideo = document.createElement('video'); // كاميرا مخفية كمصدر
+        rawVideo.autoplay = true;
+        rawVideo.muted = true;
+        rawVideo.playsInline = true;
+
+        const canvas = document.getElementById('canvasPreview');
+        const ctx = canvas.getContext('2d');
+        const statusMsg = document.getElementById('statusMsg');
+        const joinBtn = document.getElementById('joinBtn');
+        const nameInput = document.getElementById('guestName');
+        const locationInput = document.getElementById('guestLocation');
+
+        let pc; // WebRTC Peer Connection
+        const iceServers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+        
+        let guestInfo = { name: '', location: '' };
+        let isWaiting = false;
+
+        // تحديث المعلومات الحية على الكانفاس أثناء الكتابة
+        nameInput.addEventListener('input', (e) => guestInfo.name = e.target.value.trim());
+        locationInput.addEventListener('input', (e) => guestInfo.location = e.target.value.trim());
+
+        // 1. تشغيل الكاميرا وإعداد الرسم الحي
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: { ideal: 1280 }, height: { ideal: 720 } }, 
+                    audio: true 
+                });
+                rawVideo.srcObject = stream;
+                statusMsg.style.display = 'none';
+                joinBtn.disabled = false;
+                
+                // بدء حلقة الرسم اللحظي
+                requestAnimationFrame(drawCanvas);
+            } catch (err) {
+                statusMsg.innerText = "❌ يرجى السماح باستخدام الكاميرا والمايكروفون";
+                statusMsg.style.color = "#ef4444";
+            }
+        }
+
+        // 2. دمج الكاميرا مع "الشريط التعريفي" في الكانفاس
+        function drawCanvas() {
+            if (rawVideo.videoWidth > 0) {
+                const w = rawVideo.videoWidth;
+                const h = rawVideo.videoHeight;
+                canvas.width = w;
+                canvas.height = h;
+
+                // رسم الكاميرا معكوسة (كالمرآة لراحة الضيف)
+                ctx.save();
+                ctx.translate(w, 0);
+                ctx.scale(-1, 1);
+                ctx.drawImage(rawVideo, 0, 0, w, h);
+                ctx.restore();
+
+                // رسم الشريط التعريفي إذا تم كتابة الاسم
+                if (guestInfo.name || guestInfo.location) {
+                    const boxW = Math.min(500, w * 0.8);
+                    const boxX = w - boxW - 40; // هامش من اليمين
+                    const startY = h - 140; // هامش من الأسفل
+
+                    // المستطيل الأحمر (للاسم)
+                    ctx.fillStyle = '#ef4444';
+                    ctx.fillRect(boxX, startY, boxW, 55);
+
+                    // المستطيل الداكن (للمكان/الصفة)
+                    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+                    ctx.fillRect(boxX, startY + 55, boxW, 40);
+
+                    // إعدادات الخط والنص
+                    ctx.fillStyle = 'white';
+                    ctx.textAlign = 'right';
+                    ctx.direction = 'rtl';
+
+                    // كتابة الاسم
+                    ctx.font = `bold ${Math.floor(boxW*0.065)}px 'Cairo', sans-serif`;
+                    ctx.fillText(guestInfo.name, boxX + boxW - 20, startY + 38);
+
+                    // كتابة المكان
+                    ctx.font = `${Math.floor(boxW*0.045)}px 'Cairo', sans-serif`;
+                    ctx.fillText(guestInfo.location, boxX + boxW - 20, startY + 83);
+                }
+            }
+            requestAnimationFrame(drawCanvas);
+        }
+
+        startCamera();
+
+        // 3. طلب الدخول للاستوديو
+        joinBtn.addEventListener('click', () => {
+            if (!guestInfo.name) return alert('الرجاء كتابة اسمك على الأقل.');
+            
+            socket.emit('guest request join', guestInfo);
+            joinBtn.innerText = '⏳ جاري الاتصال بغرفة التحكم... يرجى الانتظار';
+            joinBtn.disabled = true;
+            joinBtn.style.background = '#f59e0b';
+            nameInput.disabled = true;
+            locationInput.disabled = true;
+        });
+
+        // 4. قبول الإدارة وبدء إرسال الفيديو (WebRTC)
+        socket.on('request accepted', async (data) => {
+            const adminId = data.adminId; // استلام الـ ID الخاص بالإدارة
+            joinBtn.innerText = '🔴 أنت الآن على الهواء!';
+            joinBtn.style.background = '#10b981';
+
+            pc = new RTCPeerConnection(iceServers);
+
+            // التقاط الفيديو المرسوم (الكاميرا + الاسم) والصوت الأصلي
+            const canvasStream = canvas.captureStream(30);
+            const audioTracks = rawVideo.srcObject.getAudioTracks();
+            if (audioTracks.length > 0) canvasStream.addTrack(audioTracks[0]);
+
+            // إرسال المكس النهائي
+            canvasStream.getTracks().forEach(track => pc.addTrack(track, canvasStream));
+
+            pc.onicecandidate = (e) => {
+                if (e.candidate) {
+                    socket.emit('webrtc_ice_candidate', { target: adminId, candidate: e.candidate });
+                }
+            };
+
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            socket.emit('webrtc_offer', { target: adminId, sdp: offer });
+        });
+
+        // 5. استلام الإجابة من الإدارة واستكمال الاتصال
+        socket.on('webrtc_answer', async (data) => {
+            await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        });
+
+        socket.on('webrtc_ice_candidate', async (data) => {
+            if (pc && data.candidate) {
+                await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+            }
+        });
+
+        // 6. التعامل مع الطرد
+        socket.on('kicked', () => {
+            alert('شكرًا لمشاركتك! انتهت المقابلة.');
+            window.location.reload();
+        });
+    </script>
+</body>
+</html>
