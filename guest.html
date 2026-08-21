@@ -70,7 +70,6 @@
         const iceServers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
         
         let guestInfo = { name: '', location: '' };
-        let isWaiting = false;
 
         // تحديث المعلومات الحية على الكانفاس أثناء الكتابة
         nameInput.addEventListener('input', (e) => guestInfo.name = e.target.value.trim());
@@ -143,8 +142,11 @@
 
         startCamera();
 
-        // 3. طلب الدخول للاستوديو
+        // 3. طلب الدخول للاستوديو (محدث لسحب الاسم فوراً عند الضغط)
         joinBtn.addEventListener('click', () => {
+            guestInfo.name = nameInput.value.trim();
+            guestInfo.location = locationInput.value.trim();
+
             if (!guestInfo.name) return alert('الرجاء كتابة اسمك على الأقل.');
             
             socket.emit('guest request join', guestInfo);
@@ -162,6 +164,19 @@
             joinBtn.style.background = '#10b981';
 
             pc = new RTCPeerConnection(iceServers);
+
+            // 🔊 -- استقبال صوت الإدارة (غرفة التحكم) -- 🔊
+            pc.ontrack = (event) => {
+                let adminAudio = document.getElementById('adminAudio');
+                if (!adminAudio) {
+                    adminAudio = document.createElement('audio');
+                    adminAudio.id = 'adminAudio';
+                    adminAudio.autoplay = true;
+                    document.body.appendChild(adminAudio);
+                }
+                adminAudio.srcObject = event.streams[0];
+            };
+            // 🔊 -------------------------------------- 🔊
 
             // التقاط الفيديو المرسوم (الكاميرا + الاسم) والصوت الأصلي
             const canvasStream = canvas.captureStream(30);
