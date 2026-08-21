@@ -10,6 +10,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <!-- تمت إضافة مكتبة flv.js هنا لتشغيل البث المباشر الخاص بك -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/flv.js/1.6.2/flv.min.js"></script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
     <style>
@@ -175,6 +177,7 @@
         socket.on('disconnect', () => { statusIcon.textContent = '🔴'; });
 
         let hlsInstance = null;
+        let flvPlayer = null; // تمت الإضافة للتحكم في مشغل البث المباشر
 
         function loadStream(url, offsetSeconds = 0, isEmergency = false) {
             const container = document.getElementById('playerContainer');
@@ -194,7 +197,10 @@
 
             if (match && match[1]) {
                 let videoId = match[1];
+                
+                // تنظيف المشغلات السابقة لضمان عدم حدوث تعارض
                 if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
+                if (flvPlayer) { flvPlayer.destroy(); flvPlayer = null; }
                 
                 // دمج (start) في الرابط لتشغيل الفيديو من الزمن الذي حسبه السيرفر
                 let iframeUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&enablejsapi=1&start=${offsetSeconds}`;
@@ -206,7 +212,7 @@
                     ${graphicsHTML}
                 `;
             } else {
-                // إذا كان الرابط m3u8 أو mp4
+                // إذا كان الرابط m3u8 أو mp4 أو flv
                 if (!document.getElementById('main-player')) {
                     container.innerHTML = `
                         <video id="main-player" controls preload="auto" poster="placeholder.jpg" muted autoplay></video>
@@ -216,8 +222,11 @@
                 
                 const video = document.getElementById('main-player');
                 
+                // تنظيف المشغلات السابقة
+                if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
+                if (flvPlayer) { flvPlayer.destroy(); flvPlayer = null; }
+                
                 if (url.includes('.m3u8') && window.Hls && Hls.isSupported()) {
-                    if (hlsInstance) hlsInstance.destroy();
                     hlsInstance = new Hls();
                     hlsInstance.loadSource(url);
                     hlsInstance.attachMedia(video);
@@ -225,12 +234,24 @@
                         video.currentTime = offsetSeconds; // التقديم للزمن الصحيح
                         video.play().catch(e => console.log("التشغيل التلقائي يحتاج تفاعل"));
                     });
-                } else if (video) {
+                } 
+                // تشغيل صيغة FLV الخاصة بالبث المباشر للسيرفر
+                else if (url.includes('.flv') && window.flvjs && flvjs.isSupported()) {
+                    flvPlayer = flvjs.createPlayer({
+                        type: 'flv',
+                        url: url,
+                        isLive: isEmergency // تحسين الأداء للبث المباشر
+                    });
+                    flvPlayer.attachMediaElement(video);
+                    flvPlayer.load();
+                    flvPlayer.play().catch(e => console.log("التشغيل التلقائي يحتاج تفاعل"));
+                }
+                else if (video) {
                     video.src = url;
                     video.addEventListener('loadedmetadata', () => {
                         video.currentTime = offsetSeconds; // التقديم للزمن الصحيح
                         video.play().catch(e => console.log(e));
-                    });
+                    }, { once: true });
                 }
             }
         }
